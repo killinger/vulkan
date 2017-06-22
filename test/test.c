@@ -1,7 +1,10 @@
 #include <Windows.h>
+#include "../vulkangame/datatest.h"
 
-__declspec(dllexport) void testprint();
-void testprint()
+__declspec(dllexport) void testprint(DataTest *test);
+void testprint(DataTest *test)
 {
-	OutputDebugString(L"\ntest\ntest\ntest\n\n");
+	test->testA = 1;
+	test->testB = 2;
+	test->testC = 3;
 }

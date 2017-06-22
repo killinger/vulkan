@@ -1,17 +1,52 @@
 #include <Windows.h>
 #include <assert.h>
+#include <tchar.h>
 #include "vulkan\vulkan.h"
+#include "datatest.h"
 
+// TODO: remove
 void dllTest()
 {
+	DataTest test = {0};
 	HMODULE test_dll = LoadLibrary(L"test.dll");
-	void(*func)(void) = (void*)GetProcAddress(test_dll, "testprint");
-	func();
+	void(*func)(DataTest*) = (void*)GetProcAddress(test_dll, "testprint");
+	func(&test);
 	FreeLibrary(test_dll);
+}
+
+// TODO: clean up
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	PAINTSTRUCT ps;
+	HDC hdc;
+
+	switch (message)
+	{
+	case WM_PAINT:
+		hdc = BeginPaint(hWnd, &ps);
+		TextOut(hdc, 5, 5, _T("hej"), _tcslen(_T("hej")));
+		EndPaint(hWnd, &ps);
+		break;
+	case WM_DESTROY:
+		PostQuitMessage(0);
+		break;
+	default:
+		return DefWindowProc(hWnd, message, wParam, lParam);
+		break;
+	}
+
+	return 0;
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
+	// Vulkan block
+	// -> TODO: Ensure a compatible card is chosen.
+	// -> TODO: Remove magic numbers.
+	// -> TODO: Consider dynamic linkage.
+	// -> TODO: Architecture?
+	// -> TODO: Clean up.
+
 	VkResult result;
 
 	uint32_t instance_extensions_count;
@@ -119,6 +154,58 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	VkQueue queue;
 	vkGetDeviceQueue(logical_device, queue_family_index, 0, &queue);
+
+	// Window block
+	// -> TODO: Clean up.
+	// -> TODO: Remove magic numbers.
+	// -> TODO: Architecture?
+	// --> Abstraction layers?
+	// --> Try dynamic linkage of behavior (movement, AI etc.) for hot loading code.
+	// --> Consider consequences of different game object implementations.
+	// ---> Consider SoA vs. AoS.
+	// -> TODO: Game loop.
+
+	// TODO: clean up
+	WNDCLASSEX windowClass = { 0 };
+	windowClass.cbSize = sizeof(WNDCLASSEX);
+	windowClass.style = CS_HREDRAW | CS_VREDRAW;
+	windowClass.lpfnWndProc = WndProc;
+	windowClass.cbClsExtra = 0;
+	windowClass.cbWndExtra = 0;
+	windowClass.hInstance = hInstance;
+	windowClass.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
+	windowClass.hCursor = LoadCursor(NULL, IDC_ARROW);
+	windowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+	windowClass.lpszMenuName = NULL;
+	windowClass.lpszClassName = L"windowClass";
+	windowClass.hIconSm = LoadIcon(windowClass.hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
+
+	RegisterClassEx(&windowClass);
+	
+	// TODO: clean up
+	HWND window = CreateWindow(
+		L"windowClass",
+		L"vulkan",
+		WS_OVERLAPPEDWINDOW,
+		CW_USEDEFAULT,
+		CW_USEDEFAULT,
+		500,
+		100,
+		NULL,
+		NULL,
+		hInstance,
+		NULL
+	);
+
+	ShowWindow(window, nShowCmd);
+	
+	// TODO: peek message
+	MSG msg;
+	while (GetMessage(&msg, NULL, 0, 0))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
 
 	return 0;
 }
