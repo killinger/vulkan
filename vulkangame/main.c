@@ -2,6 +2,14 @@
 #include <assert.h>
 #include "vulkan\vulkan.h"
 
+void dllTest()
+{
+	HMODULE test_dll = LoadLibrary(L"test.dll");
+	void(*func)(void) = (void*)GetProcAddress(test_dll, "testprint");
+	func();
+	FreeLibrary(test_dll);
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
 	VkResult result;
@@ -39,7 +47,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	uint32_t devices_count;
 	result = vkEnumeratePhysicalDevices(instance, &devices_count, NULL);
 	assert(result == VK_SUCCESS);
-	
+
 	VkPhysicalDevice *available_devices =
 		(VkPhysicalDevice*)malloc(devices_count * sizeof(VkPhysicalDevice)); // TODO: free
 	result = vkEnumeratePhysicalDevices(instance, &devices_count, available_devices);
@@ -53,9 +61,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	VkExtensionProperties *available_device_extensions =
 		(VkExtensionProperties*)malloc(device_extensions_count * sizeof(VkExtensionProperties)); // TODO: free
-	result = vkEnumerateDeviceExtensionProperties(physical_device, NULL, 
+	result = vkEnumerateDeviceExtensionProperties(physical_device, NULL,
 		&device_extensions_count, available_device_extensions);
-	assert(result == VK_SUCCESS);	
+	assert(result == VK_SUCCESS);
 
 	VkPhysicalDeviceFeatures device_features;
 	vkGetPhysicalDeviceFeatures(physical_device, &device_features);
@@ -67,10 +75,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_families_count, NULL);
 	assert(queue_families_count > 0);
 
-	VkQueueFamilyProperties *queue_families = 
+	VkQueueFamilyProperties *queue_families =
 		(VkQueueFamilyProperties*)malloc(queue_families_count * sizeof(VkQueueFamilyProperties)); // TODO: free
 	vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_families_count, queue_families);
-	
+
 	uint32_t queue_family_index = -1;
 	VkQueueFlags desired_capabilities = VK_QUEUE_GRAPHICS_BIT;
 	for (uint32_t i = 0; i < queue_families_count; i++)
@@ -92,7 +100,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	queue_create_info.queueFamilyIndex = queue_family_index;
 	queue_create_info.queueCount = 1;
 	queue_create_info.pQueuePriorities = &priority;
-	
+
 	VkDeviceCreateInfo device_create_info = { 0 };
 	device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	device_create_info.pNext = NULL;
@@ -108,6 +116,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	VkDevice logical_device;
 	result = vkCreateDevice(physical_device, &device_create_info, NULL, &logical_device);
 	assert(result == VK_SUCCESS);
+
+	VkQueue queue;
+	vkGetDeviceQueue(logical_device, queue_family_index, 0, &queue);
 
 	return 0;
 }
