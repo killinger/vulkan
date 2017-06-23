@@ -21,7 +21,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	PAINTSTRUCT ps;
 	HDC hdc;
-
 	switch (message)
 	{
 	case WM_PAINT:
@@ -160,9 +159,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	// Window block
 	// -> TODO: Clean up.
 	// -> TODO: Remove magic numbers.
+	// -> TODO: Non-resizable window.
 	// -> TODO: Architecture?
 	// --> Abstraction layers?
-	// --> Try dynamic linkage of behavior (movement, AI etc.) for hot loading code.
+	// --> Try dynamic linkage of behavior (movement, AI etc).
 	// --> Consider consequences of different game object implementations.
 	// ---> Consider SoA vs. AoS.
 	// -> TODO: Game loop.
