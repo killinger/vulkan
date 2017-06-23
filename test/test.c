@@ -4,7 +4,7 @@
 __declspec(dllexport) void testprint(DataTest *test);
 void testprint(DataTest *test)
 {
-	test->testA = 1;
-	test->testB = 2;
-	test->testC = 3;
+	test->testA = 3;
+	test->testB = 4;
+	test->testC = 5;
 }

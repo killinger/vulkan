@@ -4,7 +4,8 @@
 #include "vulkan\vulkan.h"
 #include "datatest.h"
 
-// TODO: remove
+// TODO: expand
+// TODO: CopyFile to avoid dll locking
 void dllTest()
 {
 	DataTest test = {0};
@@ -12,6 +13,7 @@ void dllTest()
 	void(*func)(DataTest*) = (void*)GetProcAddress(test_dll, "testprint");
 	func(&test);
 	FreeLibrary(test_dll);
+	int i = 0;
 }
 
 // TODO: clean up
@@ -199,6 +201,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	ShowWindow(window, nShowCmd);
 	
+	// dynamic behavior linkage test
+	//while (1)
+	//{
+		//dllTest();
+	//}
+	
+
 	// TODO: peek message
 	MSG msg;
 	while (GetMessage(&msg, NULL, 0, 0))
