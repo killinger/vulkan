@@ -15,6 +15,7 @@
 // TODO: Non-resizable window.
 // TODO: CopyFile to avoid dll locking
 
+
 VkInstance createVkInstance();
 boolean isExtensionAvailable(const char *const desiredExtension, VkExtensionProperties *availableExtensions, uint32_t extensionsCount);
 void getInfoForAllGpus(GpuInfo *gpuInfos, VkPhysicalDevice *availableDevices, uint32_t gpuCount);
@@ -22,6 +23,8 @@ int32_t getFirstCompatibleGpuIndex(GpuInfo *gpuInfos, uint32_t gpuCount);
 uint32_t getVkGraphicsQueueFamilyIndex(VkPhysicalDevice physical_device);
 VkPhysicalDevice getVkPhysicalDevice(VkInstance instance);
 VkSurfaceKHR createVkSurface(VkInstance instance, HINSTANCE hInstance, HWND window);
+
+HWND createAndRegisterWindow(HINSTANCE hInstance);
 
 void dllTest()
 {
@@ -65,7 +68,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	VkPhysicalDevice physical_device = getVkPhysicalDevice(instance);
 	uint32_t queue_family_index = getVkGraphicsQueueFamilyIndex(physical_device);
 
-	// starting clean up ->
+	// starting clean up, not used yet ->
 	uint32_t gpuCount;
 	result = vkEnumeratePhysicalDevices(instance, &gpuCount, NULL);
 	assert(result == VK_SUCCESS);
@@ -148,39 +151,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	result = vkAllocateCommandBuffers(logical_device, &command_buffer_allocate_info, &command_buffer);
 	assert(result == VK_SUCCESS);
 
-	// Window block
-
-	// TODO: clean up
-	WNDCLASSEX windowClass = { 0 };
-	windowClass.cbSize = sizeof(WNDCLASSEX);
-	windowClass.style = CS_HREDRAW | CS_VREDRAW;
-	windowClass.lpfnWndProc = WndProc;
-	windowClass.cbClsExtra = 0;
-	windowClass.cbWndExtra = 0;
-	windowClass.hInstance = hInstance;
-	windowClass.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
-	windowClass.hCursor = LoadCursor(NULL, IDC_ARROW);
-	windowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-	windowClass.lpszMenuName = NULL;
-	windowClass.lpszClassName = L"windowClass";
-	windowClass.hIconSm = LoadIcon(windowClass.hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
-
-	RegisterClassEx(&windowClass);
-
-	// TODO: clean up
-	HWND window = CreateWindow(
-		L"windowClass", // class name
-		L"vulkan", // window name
-		WS_OVERLAPPEDWINDOW, // TODO: consider flags
-		CW_USEDEFAULT, // pos x
-		CW_USEDEFAULT, // pos y
-		500, // width
-		100, // height
-		NULL,
-		NULL,
-		hInstance,
-		NULL
-	);
+	
+	HWND window = createAndRegisterWindow(hInstance);
 
 	// TODO: vkGetPhysicalDeviceSurfaceSupportKHR()
 	VkSurfaceKHR presentation_surface = createVkSurface(instance, hInstance, window);
@@ -342,34 +314,32 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
 	imageMemoryBarrier.subresourceRange.layerCount = 1;
 
-
-
 	// swapchain image views
-	VkImageViewCreateInfo *image_view_create_infos =
-		(VkImageViewCreateInfo*)malloc(images_count * sizeof(VkImageViewCreateInfo)); // TODO: free
-	VkImageView *image_views =
-		(VkImageView*)malloc(images_count * sizeof(VkImageView));
-	for (uint32_t i = 0; i < images_count; i++)
-	{
-		image_view_create_infos[i].sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		image_view_create_infos[i].pNext = NULL;
-		image_view_create_infos[i].flags = 0;
-		image_view_create_infos[i].image = swapchain_images[i];
-		image_view_create_infos[i].viewType = VK_IMAGE_VIEW_TYPE_2D;
-		image_view_create_infos[i].format = image_format;
-		image_view_create_infos[i].components.r = VK_COMPONENT_SWIZZLE_R;
-		image_view_create_infos[i].components.g = VK_COMPONENT_SWIZZLE_G;
-		image_view_create_infos[i].components.b = VK_COMPONENT_SWIZZLE_B;
-		image_view_create_infos[i].components.a = VK_COMPONENT_SWIZZLE_A;
-		image_view_create_infos[i].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		image_view_create_infos[i].subresourceRange.baseMipLevel = 0;
-		image_view_create_infos[i].subresourceRange.levelCount = 1;
-		image_view_create_infos[i].subresourceRange.baseArrayLayer = 0;
-		image_view_create_infos[i].subresourceRange.layerCount = 1;
+	//VkImageViewCreateInfo *image_view_create_infos =
+	//	(VkImageViewCreateInfo*)malloc(images_count * sizeof(VkImageViewCreateInfo)); // TODO: free
+	//VkImageView *image_views =
+	//	(VkImageView*)malloc(images_count * sizeof(VkImageView));
+	//for (uint32_t i = 0; i < images_count; i++)
+	//{
+	//	image_view_create_infos[i].sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	//	image_view_create_infos[i].pNext = NULL;
+	//	image_view_create_infos[i].flags = 0;
+	//	image_view_create_infos[i].image = swapchain_images[i];
+	//	image_view_create_infos[i].viewType = VK_IMAGE_VIEW_TYPE_2D;
+	//	image_view_create_infos[i].format = image_format;
+	//	image_view_create_infos[i].components.r = VK_COMPONENT_SWIZZLE_R;
+	//	image_view_create_infos[i].components.g = VK_COMPONENT_SWIZZLE_G;
+	//	image_view_create_infos[i].components.b = VK_COMPONENT_SWIZZLE_B;
+	//	image_view_create_infos[i].components.a = VK_COMPONENT_SWIZZLE_A;
+	//	image_view_create_infos[i].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	//	image_view_create_infos[i].subresourceRange.baseMipLevel = 0;
+	//	image_view_create_infos[i].subresourceRange.levelCount = 1;
+	//	image_view_create_infos[i].subresourceRange.baseArrayLayer = 0;
+	//	image_view_create_infos[i].subresourceRange.layerCount = 1;
 
-		result = vkCreateImageView(logical_device, &image_view_create_infos[i], NULL, &image_views[i]);
-		assert(result == VK_SUCCESS);
-	}
+	//	result = vkCreateImageView(logical_device, &image_view_create_infos[i], NULL, &image_views[i]);
+	//	assert(result == VK_SUCCESS);
+	//}
 
 	VkSemaphoreCreateInfo semaphore_create_info = { 0 };
 	semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -625,4 +595,41 @@ VkSurfaceKHR createVkSurface(VkInstance instance, HINSTANCE hInstance, HWND wind
 	assert(presentation_surface != VK_NULL_HANDLE);
 
 	return presentation_surface;
+}
+
+// TODO: clean up
+HWND createAndRegisterWindow(HINSTANCE hInstance)
+{
+	WNDCLASSEX windowClass = { 0 };
+	windowClass.cbSize = sizeof(WNDCLASSEX);
+	windowClass.style = CS_HREDRAW | CS_VREDRAW;
+	windowClass.lpfnWndProc = WndProc;
+	windowClass.cbClsExtra = 0;
+	windowClass.cbWndExtra = 0;
+	windowClass.hInstance = hInstance;
+	windowClass.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
+	windowClass.hCursor = LoadCursor(NULL, IDC_ARROW);
+	windowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+	windowClass.lpszMenuName = NULL;
+	windowClass.lpszClassName = L"windowClass";
+	windowClass.hIconSm = LoadIcon(windowClass.hInstance, MAKEINTRESOURCE(IDI_APPLICATION));
+
+	RegisterClassEx(&windowClass);
+
+	// TODO: clean up
+	HWND window = CreateWindow(
+		L"windowClass", // class name
+		L"vulkan", // window name
+		WS_OVERLAPPEDWINDOW, // TODO: consider flags
+		CW_USEDEFAULT, // pos x
+		CW_USEDEFAULT, // pos y
+		500, // width
+		100, // height
+		NULL,
+		NULL,
+		hInstance,
+		NULL
+	);
+
+	return window;
 }
