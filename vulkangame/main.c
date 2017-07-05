@@ -12,8 +12,16 @@
 // TODO: Remove magic numbers.
 // TODO: Consider queues.
 // TODO: Clean up.
-// TODO: Non-resizable window.
+// TODO: Non-resizable window / stop surface from breaking on resize.
 // TODO: CopyFile to avoid dll locking
+// TODO: Peek message + proper gameloop.
+
+// Heap:
+// Swapchain+images+count
+// Queue indices
+// Synchronization primitives (memory barriers/semaphores/fences)
+// Command pools/buffers
+// Presentation surface
 
 
 VkInstance createVkInstance();
@@ -200,8 +208,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	// TODO: check desired/supported usages.
 
-	VkImageUsageFlags desired_usages = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	VkImageUsageFlags image_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	VkImageUsageFlags desired_usages = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	VkImageUsageFlags image_usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
 	// TODO: set desired transformation of swapchain images
 
@@ -315,31 +323,34 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	imageMemoryBarrier.subresourceRange.layerCount = 1;
 
 	// swapchain image views
-	//VkImageViewCreateInfo *image_view_create_infos =
-	//	(VkImageViewCreateInfo*)malloc(images_count * sizeof(VkImageViewCreateInfo)); // TODO: free
-	//VkImageView *image_views =
-	//	(VkImageView*)malloc(images_count * sizeof(VkImageView));
-	//for (uint32_t i = 0; i < images_count; i++)
-	//{
-	//	image_view_create_infos[i].sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	//	image_view_create_infos[i].pNext = NULL;
-	//	image_view_create_infos[i].flags = 0;
-	//	image_view_create_infos[i].image = swapchain_images[i];
-	//	image_view_create_infos[i].viewType = VK_IMAGE_VIEW_TYPE_2D;
-	//	image_view_create_infos[i].format = image_format;
-	//	image_view_create_infos[i].components.r = VK_COMPONENT_SWIZZLE_R;
-	//	image_view_create_infos[i].components.g = VK_COMPONENT_SWIZZLE_G;
-	//	image_view_create_infos[i].components.b = VK_COMPONENT_SWIZZLE_B;
-	//	image_view_create_infos[i].components.a = VK_COMPONENT_SWIZZLE_A;
-	//	image_view_create_infos[i].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	//	image_view_create_infos[i].subresourceRange.baseMipLevel = 0;
-	//	image_view_create_infos[i].subresourceRange.levelCount = 1;
-	//	image_view_create_infos[i].subresourceRange.baseArrayLayer = 0;
-	//	image_view_create_infos[i].subresourceRange.layerCount = 1;
+	VkImageSubresourceRange subresourceRange = { 0 };
+	subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	subresourceRange.baseMipLevel = 0;
+	subresourceRange.levelCount = 1;
+	subresourceRange.baseArrayLayer = 0;
+	subresourceRange.layerCount = 1;
 
-	//	result = vkCreateImageView(logical_device, &image_view_create_infos[i], NULL, &image_views[i]);
-	//	assert(result == VK_SUCCESS);
-	//}
+	VkImageViewCreateInfo *image_view_create_infos =
+		(VkImageViewCreateInfo*)malloc(images_count * sizeof(VkImageViewCreateInfo)); // TODO: free
+	VkImageView *image_views =
+		(VkImageView*)malloc(images_count * sizeof(VkImageView));
+	for (uint32_t i = 0; i < images_count; i++)
+	{
+		image_view_create_infos[i].sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		image_view_create_infos[i].pNext = NULL;
+		image_view_create_infos[i].flags = 0;
+		image_view_create_infos[i].image = swapchain_images[i];
+		image_view_create_infos[i].viewType = VK_IMAGE_VIEW_TYPE_2D;
+		image_view_create_infos[i].format = image_format;
+		image_view_create_infos[i].components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		image_view_create_infos[i].components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		image_view_create_infos[i].components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		image_view_create_infos[i].components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		image_view_create_infos[i].subresourceRange = subresourceRange;
+
+		result = vkCreateImageView(logical_device, &image_view_create_infos[i], NULL, &image_views[i]);
+		assert(result == VK_SUCCESS);
+	}
 
 	VkSemaphoreCreateInfo semaphore_create_info = { 0 };
 	semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -359,18 +370,84 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	//uint32_t image_indices = 1;
 
+	//
+
+	VkImageMemoryBarrier imageMemoryBarrierUndefinedToTransfer = {
+		VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,     // VkStructureType                        sType
+		NULL,                                    // const void                            *pNext
+		0,                  // VkAccessFlags                          srcAccessMask
+		VK_ACCESS_TRANSFER_WRITE_BIT,               // VkAccessFlags                          dstAccessMask
+		VK_IMAGE_LAYOUT_UNDEFINED,                  // VkImageLayout                          oldLayout
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,       // VkImageLayout                          newLayout
+		VK_QUEUE_FAMILY_IGNORED,                    // uint32_t                               srcQueueFamilyIndex
+		VK_QUEUE_FAMILY_IGNORED,                    // uint32_t                               dstQueueFamilyIndex
+		swapchain_images[image_index],                       // VkImage                                image
+		subresourceRange                    // VkImageSubresourceRange                subresourceRange
+	};
+
+	VkImageMemoryBarrier imageMemoryBarrierTransferToPresent = {
+		VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,     // VkStructureType                        sType
+		NULL,                                    // const void                            *pNext
+		VK_ACCESS_TRANSFER_WRITE_BIT,                  // VkAccessFlags                          srcAccessMask
+		VK_ACCESS_TRANSFER_WRITE_BIT,               // VkAccessFlags                          dstAccessMask
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,                  // VkImageLayout                          oldLayout
+		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,       // VkImageLayout                          newLayout
+		VK_QUEUE_FAMILY_IGNORED,                    // uint32_t                               srcQueueFamilyIndex
+		VK_QUEUE_FAMILY_IGNORED,                    // uint32_t                               dstQueueFamilyIndex
+		swapchain_images[image_index],                       // VkImage                                image
+		subresourceRange                    // VkImageSubresourceRange                subresourceRange
+	};
+
+	VkCommandBufferBeginInfo commandBufferBeginInfo = { 0 };
+	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	commandBufferBeginInfo.pNext = NULL;
+	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+	commandBufferBeginInfo.pInheritanceInfo = NULL;
+
+	VkClearColorValue clear_color = {
+		{ 0.5f, 0.5f, 1.0f, 0.0f }
+	};
+
+	result = vkBeginCommandBuffer(command_buffer, &commandBufferBeginInfo);
+	vkCmdPipelineBarrier(command_buffer, 
+		VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 
+		0, 0, NULL, 0, NULL, 1, &imageMemoryBarrierUndefinedToTransfer);
+	vkCmdClearColorImage(command_buffer, swapchain_images[image_index],
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear_color, 
+		1, &subresourceRange);
+	vkCmdPipelineBarrier(command_buffer,
+		VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+		0, 0, NULL, 0, NULL, 1, &imageMemoryBarrierTransferToPresent);
+	result = vkEndCommandBuffer(command_buffer);
+
+	VkSubmitInfo submitInfo = { 0 };
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.pNext = NULL;
+	submitInfo.waitSemaphoreCount = 0;
+	submitInfo.pWaitSemaphores = NULL;
+	submitInfo.pWaitDstStageMask = NULL;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &command_buffer;
+	submitInfo.signalSemaphoreCount = 0;
+	submitInfo.pSignalSemaphores = NULL;
+
+	result = vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+	// VkQueueSubmit
+
+	//
+
 	VkPresentInfoKHR present_info = { 0 };
 	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	present_info.pNext = NULL;
-	present_info.waitSemaphoreCount = 1;
-	present_info.pWaitSemaphores = &semaphore;
+	present_info.waitSemaphoreCount = 0;
+	present_info.pWaitSemaphores = NULL;
 	present_info.swapchainCount = 1;
 	present_info.pSwapchains = &swapchain;
 	present_info.pImageIndices = &image_index;
-
-	vkQueuePresentKHR(queue, &present_info);
-
-	ShowWindow(window, nShowCmd);
+	
+	ShowWindow(window, nShowCmd);	
+	
+	result = vkQueuePresentKHR(queue, &present_info);	
 
 	//while (1)
 	//{
