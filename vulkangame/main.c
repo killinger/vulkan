@@ -6,6 +6,7 @@
 #include "vulkaninfo.h"
 #include "vulkan\vulkan.h"
 #include "datatest.h"
+#include "simd_math.h"
 
 
 // TODO: Ensure a compatible card is chosen.
@@ -60,6 +61,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
+	Vector3 vec = {
+		25.0f,
+		36.0f,
+		64.0f
+	};
+	Vector3 unitTest = convertVectorToUnitLength(vec);
+	float lengthTest = getVectorLength(unitTest);
+
 	// Vulkan block
 
 	// TODO: Ensure a compatible device is chosen.
@@ -372,6 +381,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	//
 
+	// CLEAR 
+
 	VkImageMemoryBarrier imageMemoryBarrierUndefinedToTransfer = {
 		VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,     // VkStructureType                        sType
 		NULL,                                    // const void                            *pNext
@@ -447,13 +458,151 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	
 	ShowWindow(window, nShowCmd);	
 	
-	result = vkQueuePresentKHR(queue, &present_info);	
+	result = vkQueuePresentKHR(queue, &present_info);
 
-	//while (1)
+	// depth buffer
+	VkImageCreateInfo depthBufferCreateInfo = {0};
+	depthBufferCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	depthBufferCreateInfo.pNext = NULL;
+	depthBufferCreateInfo.flags = 0;
+	depthBufferCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	depthBufferCreateInfo.format = VK_FORMAT_D16_UNORM;
+	depthBufferCreateInfo.extent.width = size_of_images.width;
+	depthBufferCreateInfo.extent.height = size_of_images.height;
+	depthBufferCreateInfo.extent.depth = 1;
+	depthBufferCreateInfo.mipLevels = 1;
+	depthBufferCreateInfo.arrayLayers = 1;
+	depthBufferCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	depthBufferCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	depthBufferCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	depthBufferCreateInfo.queueFamilyIndexCount = 0;
+	depthBufferCreateInfo.pQueueFamilyIndices = NULL;
+	depthBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VkImage depthBuffer;
+	result = vkCreateImage(logical_device, &depthBufferCreateInfo, NULL, &depthBuffer);
+	assert(result == VK_SUCCESS);
+
+	VkMemoryRequirements depthBufferMemoryRequirements;
+	vkGetImageMemoryRequirements(logical_device, depthBuffer, &depthBufferMemoryRequirements);
+	int32_t memoryIndex = 8; // TODO: oh gosh
+
+	//for (uint32_t i = 0; i < gpuInfo.memoryProperties.memoryTypeCount; i++)
 	//{
-		//dllTest();
+	//	
 	//}
+	//assert(memoryIndex >= 0);
 
+	VkMemoryAllocateInfo depthBufferMemoryAllocationInfo = { 0 };
+	depthBufferMemoryAllocationInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	depthBufferMemoryAllocationInfo.pNext = NULL;
+	depthBufferMemoryAllocationInfo.allocationSize = depthBufferMemoryRequirements.size;
+	depthBufferMemoryAllocationInfo.memoryTypeIndex = memoryIndex;
+
+	VkDeviceMemory depthBufferMemory;
+	result = vkAllocateMemory(logical_device, &depthBufferMemoryAllocationInfo, NULL, &depthBufferMemory);
+	assert(result == VK_SUCCESS);
+
+	//
+
+	result = vkBindImageMemory(logical_device, depthBuffer, depthBufferMemory, 0);
+	assert(result == VK_SUCCESS);
+
+	VkImageViewCreateInfo depthBufferViewCreateInfo = { 0 };
+	depthBufferViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	depthBufferViewCreateInfo.pNext = NULL;
+	depthBufferViewCreateInfo.flags = 0;
+	depthBufferViewCreateInfo.image = depthBuffer;
+	depthBufferViewCreateInfo.format = VK_FORMAT_D16_UNORM;
+	depthBufferViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+	depthBufferViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+	depthBufferViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+	depthBufferViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+	depthBufferViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	depthBufferViewCreateInfo.subresourceRange.baseMipLevel = 0;
+	depthBufferViewCreateInfo.subresourceRange.levelCount = 1;
+	depthBufferViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	depthBufferViewCreateInfo.subresourceRange.layerCount = 1;
+	depthBufferViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	
+	VkImageView depthBufferView;
+	result = vkCreateImageView(logical_device, &depthBufferViewCreateInfo, NULL, &depthBufferView);
+	assert(result == VK_SUCCESS);
+
+	// Uniform buffer
+	// TODO: Matrix transformations
+
+	//
+
+	// Descriptor set layouts
+	VkDescriptorSetLayoutBinding descriptorSetLayoutBinding = { 0 };
+	descriptorSetLayoutBinding.binding = 0;
+	descriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptorSetLayoutBinding.descriptorCount = 1;
+	descriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	descriptorSetLayoutBinding.pImmutableSamplers = NULL;
+
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = { 0 };
+	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetLayoutCreateInfo.pNext = NULL;
+	descriptorSetLayoutCreateInfo.bindingCount = 1;
+	descriptorSetLayoutCreateInfo.pBindings = &descriptorSetLayoutBinding;
+
+	VkDescriptorSetLayout descriptorSetLayout;
+	result = vkCreateDescriptorSetLayout(logical_device, &descriptorSetLayoutCreateInfo, NULL, &descriptorSetLayout);
+	assert(result == VK_SUCCESS);
+
+	// Pipeline layouts
+	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = { 0 };
+	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutCreateInfo.pNext = NULL;
+	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
+	pipelineLayoutCreateInfo.pPushConstantRanges = NULL;
+	pipelineLayoutCreateInfo.setLayoutCount = 1;
+	pipelineLayoutCreateInfo.pSetLayouts = &descriptorSetLayout;
+
+	VkPipelineLayout pipelineLayout;
+	result = vkCreatePipelineLayout(logical_device, &pipelineLayoutCreateInfo, NULL, &pipelineLayout);
+	assert(result == VK_SUCCESS);
+
+	// Descriptor pools
+	VkDescriptorPoolSize descriptorPoolSize = { 0 };
+	descriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptorPoolSize.descriptorCount = 1;
+
+	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { 0 };
+	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptorPoolCreateInfo.pNext = NULL;
+	descriptorPoolCreateInfo.maxSets = 1;
+	descriptorPoolCreateInfo.poolSizeCount = 1;
+	descriptorPoolCreateInfo.pPoolSizes = &descriptorPoolSize;
+
+	VkDescriptorPool descriptorPool;
+	result = vkCreateDescriptorPool(logical_device, &descriptorPoolCreateInfo, NULL, &descriptorPool);
+	assert(result == VK_SUCCESS);
+
+	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = { 0 };
+	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descriptorSetAllocateInfo.pNext = NULL;
+	descriptorSetAllocateInfo.descriptorPool = descriptorPool;
+	descriptorSetAllocateInfo.descriptorSetCount = 1;
+	descriptorSetAllocateInfo.pSetLayouts = &descriptorSetLayout;
+	
+	VkDescriptorSet descriptorSet;
+	result = vkAllocateDescriptorSets(logical_device, &descriptorSetAllocateInfo, &descriptorSet);
+	assert(result == VK_SUCCESS);
+
+	VkWriteDescriptorSet writeDescriptorSet = { 0 };
+	writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDescriptorSet.pNext = NULL;
+	writeDescriptorSet.dstSet = descriptorSet;
+	writeDescriptorSet.descriptorCount = 1;
+	writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	/* 
+	writeDescriptorSet.pBufferInfo = pekare till buffern
+	writeDescriptorSet.dstArrayElement
+	writeDescriptorSet.dstBinding
+	*/
 
 	// TODO: peek message
 	MSG msg;

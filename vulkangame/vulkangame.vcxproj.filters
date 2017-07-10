@@ -26,5 +26,8 @@
     <ClInclude Include="vulkaninfo.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="simd_math.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
