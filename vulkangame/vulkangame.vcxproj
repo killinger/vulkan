@@ -153,11 +153,17 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />
+    <ClCompile Include="renderer.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="datatest.h" />
+    <ClInclude Include="renderer.h" />
     <ClInclude Include="simd_math.h" />
     <ClInclude Include="vulkaninfo.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shader.frag" />
+    <None Include="shader.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

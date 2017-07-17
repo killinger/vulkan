@@ -7,6 +7,7 @@
 #include "vulkan\vulkan.h"
 #include "datatest.h"
 #include "simd_math.h"
+#include "renderer.h"
 
 
 // TODO: Ensure a compatible card is chosen.
@@ -33,7 +34,7 @@ uint32_t getVkGraphicsQueueFamilyIndex(VkPhysicalDevice physical_device);
 VkPhysicalDevice getVkPhysicalDevice(VkInstance instance);
 VkSurfaceKHR createVkSurface(VkInstance instance, HINSTANCE hInstance, HWND window);
 
-HWND createAndRegisterWindow(HINSTANCE hInstance);
+//HWND createAndRegisterWindow(HINSTANCE hInstance);
 
 void dllTest()
 {
@@ -45,7 +46,9 @@ void dllTest()
 	int i = 0;
 }
 
-// TODO: clean up
+#define TEST
+#ifndef TEST
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	switch (message)
@@ -59,6 +62,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
+
+
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
 	Vector3 vec = {
@@ -68,6 +74,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	};
 	Vector3 unitTest = convertVectorToUnitLength(vec);
 	float lengthTest = getVectorLength(unitTest);
+
+	//r_readShaders();
 
 	// Vulkan block
 
@@ -82,6 +90,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	VkResult result;
 	VkInstance instance = createVkInstance();
+
+	r_initVulkan();
+	//GpuInfo gpugug = r_test_getGpuInfo();
+
 	VkPhysicalDevice physical_device = getVkPhysicalDevice(instance);
 	uint32_t queue_family_index = getVkGraphicsQueueFamilyIndex(physical_device);
 
@@ -615,6 +627,29 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	return 0;
 }
 
+#else
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
+{
+	OsParams params = { 0 };
+	params.hInstance = hInstance;
+	params.hPrevInstance = hPrevInstance;
+	params.lpCmdLine = lpCmdLine;
+	params.nShowCmd = nShowCmd;
+
+	r_initVulkan(params);
+
+	PresentInfo prsntinfo = r_test_getPresentInfo();
+	SwapchainInfo swapchaininfo = r_test_getSwapchainInfo();
+
+	r_showWindow();
+	r_handleOSMessages();
+
+	return 0;
+}
+
+#endif // 
+
 boolean isExtensionAvailable(const char *const desiredExtension, VkExtensionProperties *availableExtensions, uint32_t extensionsCount)
 {
 	for (uint32_t i = 0; i < extensionsCount; i++)
@@ -824,6 +859,8 @@ VkSurfaceKHR createVkSurface(VkInstance instance, HINSTANCE hInstance, HWND wind
 }
 
 // TODO: clean up
+#ifndef TEST
+
 HWND createAndRegisterWindow(HINSTANCE hInstance)
 {
 	WNDCLASSEX windowClass = { 0 };
@@ -859,3 +896,5 @@ HWND createAndRegisterWindow(HINSTANCE hInstance)
 
 	return window;
 }
+
+#endif // !TEST
