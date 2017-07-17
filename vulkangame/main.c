@@ -638,6 +638,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	params.nShowCmd = nShowCmd;
 
 	r_initVulkan(params);
+	r_renderFrame();
 
 	PresentInfo prsntinfo = r_test_getPresentInfo();
 	SwapchainInfo swapchaininfo = r_test_getSwapchainInfo();

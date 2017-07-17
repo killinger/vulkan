@@ -983,6 +983,18 @@ void r_renderFrame()
 	
 	result = vkEndCommandBuffer(g_presentCommandPoolInfo.commandBuffers[0]);
 	assert(result == VK_SUCCESS);
+
+	VkPresentInfoKHR presentInfo = { 0 };
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	presentInfo.pNext = NULL;
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = &g_presentInfo.semaphore;
+	presentInfo.swapchainCount = 1;
+	presentInfo.pSwapchains = &g_swapchainInfo.swapchain;
+	presentInfo.pImageIndices = &g_swapchainInfo.nextImageIndex;
+	presentInfo.pResults = NULL;
+
+	vkQueuePresentKHR(g_deviceInfo.presentQueue, &presentInfo);
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
