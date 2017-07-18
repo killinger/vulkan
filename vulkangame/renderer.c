@@ -56,7 +56,7 @@ void r_initVulkan(OsParams params)
 {
 	g_osParams = params;
 	r_createOSWindow();
-
+	r_showWindow();
 	g_instance = r_createVkInstance();
 	g_gpuInfo = r_findFirstCompatibleGpu();
 	r_createLogicalDevice();
@@ -67,7 +67,7 @@ void r_initVulkan(OsParams params)
 	r_allocatePresentationSwapchainImageMemory();
 	r_createPresentationSwapchainImageViews();
 	r_createPresentationSynchronizationPrimitives();
-	r_initImageLayouts();
+	//r_initImageLayouts();
 	r_readShaders();
 	r_createDefaultShaderModules();
 	r_createRenderPass();
@@ -578,9 +578,7 @@ static void r_createPresentationSynchronizationPrimitives()
 }
 
 static void r_initImageLayouts()
-{
-	r_showWindow();
-
+{	
 	VkResult result;
 	result = vkAcquireNextImageKHR(g_deviceInfo.device, g_swapchainInfo.swapchain, 2000000000, g_presentInfo.semaphore, NULL, &g_swapchainInfo.nextImageIndex);
 
@@ -618,25 +616,27 @@ static void r_initImageLayouts()
 	result = vkEndCommandBuffer(g_presentCommandPoolInfo.commandBuffers[0]);
 	assert(result == VK_SUCCESS);
 
+	VkPipelineStageFlags submitWaitPipelineStageFlags = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+
 	// TODO: fix semaphore business
 	VkSubmitInfo submitInfo = { 0 };
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submitInfo.pNext = NULL;
-	submitInfo.waitSemaphoreCount = 0;
-	submitInfo.pWaitSemaphores = NULL;
-	submitInfo.pWaitDstStageMask = NULL;
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &g_presentInfo.semaphore;
+	submitInfo.pWaitDstStageMask = &submitWaitPipelineStageFlags;
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &g_presentCommandPoolInfo.commandBuffers[0];
-	submitInfo.signalSemaphoreCount = 0;
-	submitInfo.pSignalSemaphores = NULL;
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &g_presentInfo.semaphore;
 
 	result = vkQueueSubmit(g_deviceInfo.presentQueue, 1, &submitInfo, VK_NULL_HANDLE);
 
 	VkPresentInfoKHR presentInfo = { 0 };
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.pNext = NULL;
-	presentInfo.waitSemaphoreCount = 0;
-	presentInfo.pWaitSemaphores = NULL;
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = &g_presentInfo.semaphore;
 	presentInfo.swapchainCount = 1;
 	presentInfo.pSwapchains = &g_swapchainInfo.swapchain;
 	presentInfo.pImageIndices = &g_swapchainInfo.nextImageIndex;
@@ -984,6 +984,21 @@ void r_renderFrame()
 	result = vkEndCommandBuffer(g_presentCommandPoolInfo.commandBuffers[0]);
 	assert(result == VK_SUCCESS);
 
+	VkPipelineStageFlags pipelineStageFlags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+	VkSubmitInfo submitInfo = { 0 };
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.pNext = NULL;
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &g_presentInfo.semaphore;
+	submitInfo.pWaitDstStageMask = &pipelineStageFlags;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = g_presentCommandPoolInfo.commandBuffers;
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &g_presentInfo.semaphore;
+
+	vkQueueSubmit(g_deviceInfo.presentQueue, 1, &submitInfo, VK_NULL_HANDLE);
+
 	VkPresentInfoKHR presentInfo = { 0 };
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.pNext = NULL;
@@ -1046,8 +1061,8 @@ static HWND createAndRegisterWindow(HINSTANCE hInstance)
 		WS_OVERLAPPEDWINDOW, // TODO: consider flags
 		CW_USEDEFAULT, // pos x
 		CW_USEDEFAULT, // pos y
-		500, // width
-		100, // height
+		1280, // width
+		720, // height
 		NULL,
 		NULL,
 		hInstance,
