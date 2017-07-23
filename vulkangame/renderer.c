@@ -7,8 +7,42 @@
 #include <assert.h>
 #include "renderer.h"
 #include "vulkaninfo.h"
+#include "simd_math.h"
+
+struct Vertex {
+	float pos[2];
+	float color[3];
+};
+
+struct Camera
+{
+	float x;
+	float y;
+	Matrix4x4 projection;
+};
+
+// test
+// top = -1
+// left = -1
+static struct Vertex test_vertices[3] = {
+	{ {0.0f, 50.0f}, {0.3f, 0.0f, 0.9f} },
+	{ {50.0f, 0.0f}, {0.4f, 0.0f, 0.8f} },
+	{ {-50.0f, 0.0f}, {0.5f, 0.0f, 0.7f} }
+};
+
+static struct Vertex test_quad[6] = {
+	{{-25.0f, 50.0f }, { 0.3f, 0.0f, 0.9f } },
+	{{25.0f, 0.0f}, { 0.3f, 0.0f, 0.9f } },
+	{{-25.0f, 0.0f }, { 0.3f, 0.0f, 0.9f } },
+	{{-25.0f, 50.0f }, { 0.3f, 0.0f, 0.9f } },
+	{{ 25.0f, 50.0f }, { 0.3f, 0.0f, 0.9f } },
+	{{25.0f, 0 }, {0.3f, 0.0f, 0.9f} }
+};
+
+static struct Camera camera;
 
 // File scope functions
+// TODO: fix conventions
 static VkInstance r_createVkInstance();
 static void r_createOSWindow();
 static GpuInfo r_findFirstCompatibleGpu();
@@ -20,11 +54,21 @@ static void r_getPresentationSwapchainImages();
 static void r_allocatePresentationSwapchainImageMemory();
 static void r_createPresentationSwapchainImageViews();
 static void r_createPresentationSynchronizationPrimitives();
-static void r_initImageLayouts();
+static void r_initImageLayouts(); // TODO: get out?
 static void r_updateImageTransitionMemoryBarriers();
+static VkVertexInputBindingDescription r_createVertexBindingDescription(uint32_t binding); // TODO: test
+static VkVertexInputAttributeDescription r_createPositionVertexAttributeDescription( // TODO: test
+	uint32_t binding, uint32_t location);
+static VkVertexInputAttributeDescription r_createColorVertexAttributeDescription( // TODO: test
+	uint32_t binding, uint32_t location);
+static void r_createVertexBuffer(); // TODO: test
+static void r_createUniformBuffer();
 static void r_readShaders();
 static void r_createDefaultShaderModules();
 static void r_createRenderPass();
+static void r_createDescriptorSetLayout();
+static void r_createDescriptorPool();
+static void r_createDescriptorSet();
 static void r_createDefaultGraphicsPipeline();
 static void r_createFrameBuffers();
 static void r_getAllGpus(
@@ -50,17 +94,32 @@ static PresentInfo g_presentInfo = { 0 };
 static SwapchainInfo g_swapchainInfo = { 0 };
 static ImageTransitions g_imageTransitions = { 0 };
 static Shaders g_shaders = { 0 };
+static DescriptorInfo g_descriptorInfo = { 0 };
 static GraphicsPipeline g_graphicsPipeline = { 0 };
+
+static VertexBuffer g_vertexBuffer = { 0 };
+static UniformBuffer g_uniformBuffer = { 0 };
 
 void r_initVulkan(OsParams params)
 {
+	//createOrthographicProjectionMatrix(&camera.orthographicProjection, -1.0f, 1.0f, -1.0f, 1.0f, 0.1f, 10.0f);
+	//createOrthographicProjectionMatrix(&camera.projection, 0.0f, 1280.0f, 0.0f, 720.0f, 0.1f, 10.0f);
+
+	camera.projection = createOrthographicProjectionMatrix(-1280.0f/2, 1280.0f/2, -720.0f/2, 720.0f/2, 0.1f, 10.0f);
+	camera.x = 2.0f;
+	camera.y = 2.0f;
+
+	Matrix4x4 cameraTranslation = createTranslationMatrix(-camera.x, -camera.y, 0.0f);
+	Matrix4x4 cameraBasis = createMatrixSetDiagonals(1.0f, -1.0f, -1.0f, 1.0f);
+	Matrix4x4 cameraTransform = multiply(cameraBasis, cameraTranslation);
+	Matrix4x4 vpMatrix = multiply(camera.projection, cameraTransform);
+
 	g_osParams = params;
 	r_createOSWindow();
 	r_showWindow();
 	g_instance = r_createVkInstance();
 	g_gpuInfo = r_findFirstCompatibleGpu();
 	r_createLogicalDevice();
-	r_createPresentCommandPoolAndBuffers();
 	r_createPresentationSurface();
 	r_createPresentationSwapchain();
 	r_getPresentationSwapchainImages();
@@ -68,11 +127,18 @@ void r_initVulkan(OsParams params)
 	r_createPresentationSwapchainImageViews();
 	r_createPresentationSynchronizationPrimitives();
 	//r_initImageLayouts();
+	r_createVertexBuffer();
+	r_createUniformBuffer();
+	//
 	r_readShaders();
 	r_createDefaultShaderModules();
 	r_createRenderPass();
+	r_createDescriptorSetLayout();
+	r_createDescriptorPool();
+	r_createDescriptorSet();
 	r_createDefaultGraphicsPipeline();
 	r_createFrameBuffers();
+	r_createPresentCommandPoolAndBuffers();
 }
 
 void r_destroyVulkan()
@@ -286,6 +352,7 @@ static boolean r_isExtensionAvailable(
 	return FALSE;
 }
 
+
 static void r_createLogicalDevice()
 {
 	VkResult result;
@@ -348,8 +415,9 @@ static void r_createLogicalDevice()
 static void r_createPresentCommandPoolAndBuffers()
 {
 	VkResult result;
-	g_presentCommandPoolInfo.commandBufferCount = 1;
-	g_presentCommandPoolInfo.commandBuffers = (VkCommandBuffer*)malloc(sizeof(VkCommandBuffer));
+	g_presentCommandPoolInfo.commandBufferCount = g_swapchainInfo.imagesCount;
+	g_presentCommandPoolInfo.commandBuffers =
+		(VkCommandBuffer*)malloc(g_presentCommandPoolInfo.commandBufferCount * sizeof(VkCommandBuffer)); // TODO: free
 
 	VkCommandPoolCreateInfo commandPoolCreateInfo = { 0 };
 	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -369,6 +437,48 @@ static void r_createPresentCommandPoolAndBuffers()
 
 	result = vkAllocateCommandBuffers(g_deviceInfo.device, &commandBufferAllocateInfo, g_presentCommandPoolInfo.commandBuffers);
 	assert(result == VK_SUCCESS);
+
+	// TODO: maybe one commandbuffer per swapchain image?
+
+	VkCommandBufferBeginInfo commandBufferBeginInfo = { 0 };
+	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	commandBufferBeginInfo.pNext = NULL;
+	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+	commandBufferBeginInfo.pInheritanceInfo = NULL;
+
+	VkRenderPassBeginInfo *renderPassBeginInfos =
+		(VkRenderPassBeginInfo*)malloc(g_swapchainInfo.imagesCount * sizeof(VkRenderPassBeginInfo)); // TODO: free
+
+	VkDeviceSize deviceSizeOffsets = { 0 };
+
+	for (uint32_t i = 0; i < g_swapchainInfo.imagesCount; i++)
+	{
+		renderPassBeginInfos[i].sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassBeginInfos[i].pNext = NULL;
+		renderPassBeginInfos[i].renderPass = g_graphicsPipeline.renderPass;
+		renderPassBeginInfos[i].framebuffer = g_swapchainInfo.framebuffers[i];
+		renderPassBeginInfos[i].renderArea.offset.x = 0;
+		renderPassBeginInfos[i].renderArea.offset.y = 0;
+		renderPassBeginInfos[i].renderArea.extent = g_presentInfo.imagesExtent;
+		renderPassBeginInfos[i].clearValueCount = 1;
+		renderPassBeginInfos[i].pClearValues = (const VkClearValue*)&g_presentInfo.clearColor;
+
+		result = vkBeginCommandBuffer(g_presentCommandPoolInfo.commandBuffers[i], &commandBufferBeginInfo);
+		assert(result == VK_SUCCESS);
+		{
+			vkCmdBeginRenderPass(g_presentCommandPoolInfo.commandBuffers[i], &renderPassBeginInfos[i], VK_SUBPASS_CONTENTS_INLINE);
+			{
+				vkCmdBindPipeline(g_presentCommandPoolInfo.commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, g_graphicsPipeline.pipeline);
+				vkCmdBindVertexBuffers(g_presentCommandPoolInfo.commandBuffers[i], 0, 1, &g_vertexBuffer.buffer, &deviceSizeOffsets);
+				vkCmdBindDescriptorSets(g_presentCommandPoolInfo.commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
+					g_graphicsPipeline.layout, 0, 1, &g_descriptorInfo.set, 0, NULL);
+				vkCmdDraw(g_presentCommandPoolInfo.commandBuffers[i], sizeof(test_vertices) / sizeof(struct Vertex), 1, 0, 0);
+			}
+			vkCmdEndRenderPass(g_presentCommandPoolInfo.commandBuffers[i]);
+		}
+		result = vkEndCommandBuffer(g_presentCommandPoolInfo.commandBuffers[i]);
+		assert(result == VK_SUCCESS);
+	}
 }
 
 // TODO: Stricter (or any..) validation
@@ -376,7 +486,17 @@ static void r_createPresentCommandPoolAndBuffers()
 static void r_createPresentationSurface()
 {
 	VkResult result;
-	VkSurfaceKHR presentationSurface = createVkSurface(g_instance, g_osParams.hInstance, g_presentInfo.window);
+
+	VkWin32SurfaceCreateInfoKHR win32SurfaceCreateInfo = { 0 };
+	win32SurfaceCreateInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+	win32SurfaceCreateInfo.pNext = NULL;
+	win32SurfaceCreateInfo.flags = 0;
+	win32SurfaceCreateInfo.hinstance = g_osParams.hInstance;
+	win32SurfaceCreateInfo.hwnd = g_presentInfo.window;
+
+	VkSurfaceKHR presentationSurface;
+	result = vkCreateWin32SurfaceKHR(g_instance, &win32SurfaceCreateInfo, NULL, &presentationSurface);
+	assert(result == VK_SUCCESS);
 
 	VkBool32 surfaceIsSupported;
 	result = vkGetPhysicalDeviceSurfaceSupportKHR(g_gpuInfo.device, g_deviceInfo.presentQueueFamilyIndex, presentationSurface, &surfaceIsSupported);
@@ -578,7 +698,7 @@ static void r_createPresentationSynchronizationPrimitives()
 }
 
 static void r_initImageLayouts()
-{	
+{
 	VkResult result;
 	result = vkAcquireNextImageKHR(g_deviceInfo.device, g_swapchainInfo.swapchain, 2000000000, g_presentInfo.semaphore, NULL, &g_swapchainInfo.nextImageIndex);
 
@@ -667,6 +787,161 @@ static inline void r_updateImageTransitionMemoryBarriers()
 	g_imageTransitions.transferToPresent.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	g_imageTransitions.transferToPresent.image = g_swapchainInfo.images[g_swapchainInfo.nextImageIndex];
 	g_imageTransitions.transferToPresent.subresourceRange = g_swapchainInfo.imageSubresourceRange;
+}
+
+static VkVertexInputBindingDescription r_createVertexBindingDescription(uint32_t binding)
+{
+	VkVertexInputBindingDescription vertexInputBindingDescription = { 0 };
+	vertexInputBindingDescription.binding = binding;
+	vertexInputBindingDescription.stride = sizeof(struct Vertex);
+	vertexInputBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+	return vertexInputBindingDescription;
+}
+
+static VkVertexInputAttributeDescription r_createPositionVertexAttributeDescription(
+	uint32_t binding, uint32_t location)
+{
+	VkVertexInputAttributeDescription vertexInputAttributeDescription = { 0 };
+	vertexInputAttributeDescription.binding = binding;
+	vertexInputAttributeDescription.location = location;
+	vertexInputAttributeDescription.format = VK_FORMAT_R32G32_SFLOAT;
+	vertexInputAttributeDescription.offset = offsetof(struct Vertex, pos);
+
+	return vertexInputAttributeDescription;
+}
+
+static VkVertexInputAttributeDescription r_createColorVertexAttributeDescription(
+	uint32_t binding, uint32_t location)
+{
+	VkVertexInputAttributeDescription vertexInputAttributeDescription = { 0 };
+	vertexInputAttributeDescription.binding = binding;
+	vertexInputAttributeDescription.location = location;
+	vertexInputAttributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
+	vertexInputAttributeDescription.offset = offsetof(struct Vertex, color);
+
+	return vertexInputAttributeDescription;
+}
+
+static void r_createVertexBuffer()
+{
+	VkResult result;
+
+	VkBufferCreateInfo vertexBufferCreateInfo = { 0 };
+	vertexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	vertexBufferCreateInfo.pNext = NULL;
+	vertexBufferCreateInfo.flags = 0;
+	vertexBufferCreateInfo.size = sizeof(test_vertices);
+	vertexBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	vertexBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	vertexBufferCreateInfo.queueFamilyIndexCount = 1;
+	vertexBufferCreateInfo.pQueueFamilyIndices = &g_deviceInfo.presentQueueFamilyIndex;
+
+	result = vkCreateBuffer(g_deviceInfo.device, &vertexBufferCreateInfo, NULL, &g_vertexBuffer.buffer);
+
+	vkGetBufferMemoryRequirements(g_deviceInfo.device, g_vertexBuffer.buffer, &g_vertexBuffer.memoryRequirements);
+
+	// TODO: Finding suitable memory should be a general purpose function
+	int32_t memoryPropertyIndex = -1;
+	for (uint32_t i = 0; i < g_gpuInfo.memoryProperties.memoryTypeCount; i++)
+	{
+		if ((g_vertexBuffer.memoryRequirements.memoryTypeBits & (1 << i)) && // the fuck?
+			(g_gpuInfo.memoryProperties.memoryTypes[i].propertyFlags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+			== (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+		{
+			memoryPropertyIndex = (int32_t)i;
+		}
+	}
+
+	assert(memoryPropertyIndex >= 0);
+
+	VkMemoryAllocateInfo memoryAllocateInfo = { 0 };
+	memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	memoryAllocateInfo.pNext = NULL;
+	memoryAllocateInfo.allocationSize = g_vertexBuffer.memoryRequirements.size;
+	memoryAllocateInfo.memoryTypeIndex = memoryPropertyIndex;
+
+	result = vkAllocateMemory(g_deviceInfo.device, &memoryAllocateInfo, NULL, &g_vertexBuffer.memory);
+	assert(result == VK_SUCCESS);
+
+	result = vkBindBufferMemory(g_deviceInfo.device, g_vertexBuffer.buffer, g_vertexBuffer.memory, 0);
+	assert(result == VK_SUCCESS);
+
+	void *data;
+	result = vkMapMemory(g_deviceInfo.device, g_vertexBuffer.memory, 0, sizeof(test_vertices), 0, &data);
+	assert(result == VK_SUCCESS);
+
+	memcpy(data, test_vertices, sizeof(test_vertices));
+	vkUnmapMemory(g_deviceInfo.device, g_vertexBuffer.memory);
+
+	// TODO: maybe flush?
+}
+
+// TODO: general purpose buffer create functions
+static void r_createUniformBuffer()
+{
+	VkResult result;
+
+	camera.projection = createOrthographicProjectionMatrix(-1280.0f / 2, 1280.0f / 2, -720.0f / 2, 720.0f / 2, 0.1f, 10.0f);
+	camera.x = 0.0f;
+	camera.y = 0.0f;
+
+	Matrix4x4 cameraTranslation = createTranslationMatrix(-camera.x, -camera.y, 0.0f);
+	Matrix4x4 cameraBasis = createMatrixSetDiagonals(1.0f, -1.0f, -1.0f, 1.0f);
+	Matrix4x4 cameraTransform = multiply(cameraBasis, cameraTranslation);
+	Matrix4x4 vpMatrix = multiply(camera.projection, cameraTransform);
+
+	VkDeviceSize uniformBufferSize = 16 * sizeof(float);
+	
+	VkBufferCreateInfo uniformBufferCreateInfo = { 0 };
+	uniformBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	uniformBufferCreateInfo.pNext = NULL;
+	uniformBufferCreateInfo.flags = 0;
+	uniformBufferCreateInfo.size = uniformBufferSize;
+	uniformBufferCreateInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+	uniformBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	uniformBufferCreateInfo.queueFamilyIndexCount = 1;
+	uniformBufferCreateInfo.pQueueFamilyIndices = &g_deviceInfo.presentQueueFamilyIndex;
+
+	result = vkCreateBuffer(g_deviceInfo.device, &uniformBufferCreateInfo, NULL, &g_uniformBuffer.buffer);
+	assert(result == VK_SUCCESS);
+
+	vkGetBufferMemoryRequirements(g_deviceInfo.device, g_uniformBuffer.buffer, &g_uniformBuffer.memoryRequirements);
+
+	// TODO: Finding suitable memory should be a general purpose function
+	int32_t memoryPropertyIndex = -1;
+	for (uint32_t i = 0; i < g_gpuInfo.memoryProperties.memoryTypeCount; i++)
+	{
+		if ((g_uniformBuffer.memoryRequirements.memoryTypeBits & (1 << i)) && // the fuck?
+			(g_gpuInfo.memoryProperties.memoryTypes[i].propertyFlags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+			== (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+		{
+			memoryPropertyIndex = (int32_t)i;
+		}
+	}
+
+	assert(memoryPropertyIndex >= 0);
+
+	VkMemoryAllocateInfo memoryAllocateInfo = { 0 };
+	memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	memoryAllocateInfo.pNext = NULL;
+	memoryAllocateInfo.allocationSize = g_uniformBuffer.memoryRequirements.size;
+	memoryAllocateInfo.memoryTypeIndex = memoryPropertyIndex;
+
+	result = vkAllocateMemory(g_deviceInfo.device, &memoryAllocateInfo, NULL, &g_uniformBuffer.memory);
+	assert(result == VK_SUCCESS);
+
+	result = vkBindBufferMemory(g_deviceInfo.device, g_uniformBuffer.buffer, g_uniformBuffer.memory, 0);
+	assert(result == VK_SUCCESS);
+
+	void *data;
+	result = vkMapMemory(g_deviceInfo.device, g_uniformBuffer.memory, 0, 16 * sizeof(float), 0, &data);
+	assert(result == VK_SUCCESS);
+
+	memcpy(data, vpMatrix.e, 16 * sizeof(float));
+	vkUnmapMemory(g_deviceInfo.device, g_uniformBuffer.memory);
+
+	// TODO: maybe flush?
 }
 
 static void r_readShaders()
@@ -779,6 +1054,81 @@ static void r_createRenderPass()
 	assert(result == VK_SUCCESS);
 }
 
+static void r_createDescriptorSetLayout()
+{
+	VkResult result;
+
+	VkDescriptorSetLayoutBinding descriptorSetLayoutBinding = { 0 };
+	descriptorSetLayoutBinding.binding = 0;
+	descriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptorSetLayoutBinding.descriptorCount = 1;
+	descriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	descriptorSetLayoutBinding.pImmutableSamplers = NULL;
+
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = { 0 };
+	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetLayoutCreateInfo.pNext = NULL;
+	descriptorSetLayoutCreateInfo.flags = 0;
+	descriptorSetLayoutCreateInfo.bindingCount = 1;
+	descriptorSetLayoutCreateInfo.pBindings = &descriptorSetLayoutBinding;
+
+	result = vkCreateDescriptorSetLayout(g_deviceInfo.device, &descriptorSetLayoutCreateInfo, NULL, &g_descriptorInfo.setLayout);
+	assert(result == VK_SUCCESS);
+}
+
+static void r_createDescriptorPool()
+{
+	VkResult result;
+
+	VkDescriptorPoolSize descriptorPoolSize = { 0 };
+	descriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptorPoolSize.descriptorCount = 1;
+
+	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { 0 };
+	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptorPoolCreateInfo.pNext = NULL;
+	descriptorPoolCreateInfo.flags = 0;
+	descriptorPoolCreateInfo.poolSizeCount = 1;
+	descriptorPoolCreateInfo.pPoolSizes = &descriptorPoolSize;
+	descriptorPoolCreateInfo.maxSets = 1;
+	
+	result = vkCreateDescriptorPool(g_deviceInfo.device, &descriptorPoolCreateInfo, NULL, &g_descriptorInfo.pool);
+	assert(result == VK_SUCCESS);
+}
+
+static void r_createDescriptorSet()
+{
+	VkResult result;
+
+	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = { 0 };
+	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descriptorSetAllocateInfo.pNext = NULL;
+	descriptorSetAllocateInfo.descriptorPool = g_descriptorInfo.pool;
+	descriptorSetAllocateInfo.descriptorSetCount = 1;
+	descriptorSetAllocateInfo.pSetLayouts = &g_descriptorInfo.setLayout;
+
+	result = vkAllocateDescriptorSets(g_deviceInfo.device, &descriptorSetAllocateInfo, &g_descriptorInfo.set);
+	assert(result == VK_SUCCESS);
+
+	VkDescriptorBufferInfo descriptorBufferInfo = { 0 };
+	descriptorBufferInfo.buffer = g_uniformBuffer.buffer;
+	descriptorBufferInfo.offset = 0;
+	descriptorBufferInfo.range = sizeof(Matrix4x4);
+
+	VkWriteDescriptorSet writeDescriptorSet = { 0 };
+	writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDescriptorSet.dstSet = g_descriptorInfo.set;
+	writeDescriptorSet.dstBinding = 0;
+	writeDescriptorSet.dstArrayElement = 0;
+	writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeDescriptorSet.descriptorCount = 1;
+	writeDescriptorSet.pBufferInfo = &descriptorBufferInfo;
+	writeDescriptorSet.pImageInfo = NULL;
+	writeDescriptorSet.pTexelBufferView = NULL;
+
+	vkUpdateDescriptorSets(g_deviceInfo.device, 1, &writeDescriptorSet, 0, NULL);
+}
+
 static void r_createDefaultGraphicsPipeline()
 {
 	VkResult result;
@@ -800,14 +1150,21 @@ static void r_createDefaultGraphicsPipeline()
 	shaderStages[1].pName = "main";
 	shaderStages[1].pSpecializationInfo = NULL;
 
+	VkVertexInputBindingDescription vertexInputBindingDescription = r_createVertexBindingDescription(0);
+
+	VkVertexInputAttributeDescription vertexInputAttributeDescriptions[2] =
+	{
+		r_createPositionVertexAttributeDescription(0, 0),
+		r_createColorVertexAttributeDescription(0, 1)
+	};
 
 	VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo = { 0 };
 	pipelineVertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	pipelineVertexInputStateCreateInfo.pNext = NULL;
-	pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
-	pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = NULL;
-	pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
-	pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = NULL;
+	pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
+	pipelineVertexInputStateCreateInfo.pVertexBindingDescriptions = &vertexInputBindingDescription;
+	pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 2;
+	pipelineVertexInputStateCreateInfo.pVertexAttributeDescriptions = vertexInputAttributeDescriptions;
 
 	VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo = { 0 };
 	pipelineInputAssemblyStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -890,8 +1247,8 @@ static void r_createDefaultGraphicsPipeline()
 	pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutCreateInfo.pNext = NULL;
 	pipelineLayoutCreateInfo.flags = 0;
-	pipelineLayoutCreateInfo.setLayoutCount = 0;
-	pipelineLayoutCreateInfo.pSetLayouts = NULL;
+	pipelineLayoutCreateInfo.setLayoutCount = 1;
+	pipelineLayoutCreateInfo.pSetLayouts = &g_descriptorInfo.setLayout;
 	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
 	pipelineLayoutCreateInfo.pPushConstantRanges = NULL;
 
@@ -956,34 +1313,6 @@ void r_renderFrame()
 
 	r_updateImageTransitionMemoryBarriers();
 
-	VkCommandBufferBeginInfo commandBufferBeginInfo = { 0 };
-	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	commandBufferBeginInfo.pNext = NULL;
-	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-	commandBufferBeginInfo.pInheritanceInfo = NULL;
-
-	VkRenderPassBeginInfo renderPassBeginInfo = { 0 };
-	renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	renderPassBeginInfo.pNext = NULL;
-	renderPassBeginInfo.renderPass = g_graphicsPipeline.renderPass;
-	renderPassBeginInfo.framebuffer = g_swapchainInfo.framebuffers[g_swapchainInfo.nextImageIndex];
-	renderPassBeginInfo.renderArea.offset.x = 0;
-	renderPassBeginInfo.renderArea.offset.y = 0;
-	renderPassBeginInfo.renderArea.extent = g_presentInfo.imagesExtent;
-	renderPassBeginInfo.clearValueCount = 1;
-	renderPassBeginInfo.pClearValues = &g_presentInfo.clearColor;
-
-	result = vkBeginCommandBuffer(g_presentCommandPoolInfo.commandBuffers[0], &commandBufferBeginInfo);
-	assert(result == VK_SUCCESS);
-
-	vkCmdBeginRenderPass(g_presentCommandPoolInfo.commandBuffers[0], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-	vkCmdBindPipeline(g_presentCommandPoolInfo.commandBuffers[0], VK_PIPELINE_BIND_POINT_GRAPHICS, g_graphicsPipeline.pipeline);
-	vkCmdDraw(g_presentCommandPoolInfo.commandBuffers[0], 3, 1, 0, 0);
-	vkCmdEndRenderPass(g_presentCommandPoolInfo.commandBuffers[0]);
-	
-	result = vkEndCommandBuffer(g_presentCommandPoolInfo.commandBuffers[0]);
-	assert(result == VK_SUCCESS);
-
 	VkPipelineStageFlags pipelineStageFlags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
 	VkSubmitInfo submitInfo = { 0 };
@@ -993,7 +1322,7 @@ void r_renderFrame()
 	submitInfo.pWaitSemaphores = &g_presentInfo.semaphore;
 	submitInfo.pWaitDstStageMask = &pipelineStageFlags;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = g_presentCommandPoolInfo.commandBuffers;
+	submitInfo.pCommandBuffers = &g_presentCommandPoolInfo.commandBuffers[g_swapchainInfo.nextImageIndex];
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = &g_presentInfo.semaphore;
 

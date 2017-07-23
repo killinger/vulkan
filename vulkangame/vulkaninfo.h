@@ -96,6 +96,20 @@ typedef struct GraphicsPipeline
 
 } GraphicsPipeline;
 
+typedef struct BufferInfo
+{
+	VkBuffer buffer;
+	VkMemoryRequirements memoryRequirements;
+	VkDeviceMemory memory;
+} VertexBuffer, UniformBuffer;
+
+typedef struct DescriptorInfo
+{
+	VkDescriptorSetLayout setLayout;
+	VkDescriptorPool pool;
+	VkDescriptorSet set;
+} DescriptorInfo;
+
 typedef struct OsParams
 {
 	HINSTANCE hInstance;

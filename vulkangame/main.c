@@ -6,7 +6,6 @@
 #include "vulkaninfo.h"
 #include "vulkan\vulkan.h"
 #include "datatest.h"
-#include "simd_math.h"
 #include "renderer.h"
 
 
