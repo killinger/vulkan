@@ -110,6 +110,16 @@ typedef struct DescriptorInfo
 	VkDescriptorSet set;
 } DescriptorInfo;
 
+typedef struct Texture
+{
+	unsigned char *data;
+	size_t dataSize;
+	uint32_t width;
+	uint32_t height;
+	VkImage image;
+	VkDeviceMemory imageMemory;
+} Texture;
+
 typedef struct OsParams
 {
 	HINSTANCE hInstance;

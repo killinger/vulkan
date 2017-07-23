@@ -8,6 +8,8 @@
 #include "renderer.h"
 #include "vulkaninfo.h"
 #include "simd_math.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 struct Vertex {
 	float pos[2];
@@ -63,6 +65,7 @@ static VkVertexInputAttributeDescription r_createColorVertexAttributeDescription
 	uint32_t binding, uint32_t location);
 static void r_createVertexBuffer(); // TODO: test
 static void r_createUniformBuffer();
+static void r_createTexture();
 static void r_readShaders();
 static void r_createDefaultShaderModules();
 static void r_createRenderPass();
@@ -71,6 +74,8 @@ static void r_createDescriptorPool();
 static void r_createDescriptorSet();
 static void r_createDefaultGraphicsPipeline();
 static void r_createFrameBuffers();
+static void r_readImageFile(const char *file, Texture *texture);
+static void r_createTexture();
 static void r_getAllGpus(
 	GpuInfo *gpuInfos,
 	VkPhysicalDevice *availableDevices,
@@ -139,6 +144,7 @@ void r_initVulkan(OsParams params)
 	r_createDefaultGraphicsPipeline();
 	r_createFrameBuffers();
 	r_createPresentCommandPoolAndBuffers();
+	r_createTexture();
 }
 
 void r_destroyVulkan()
@@ -700,7 +706,7 @@ static void r_createPresentationSynchronizationPrimitives()
 static void r_initImageLayouts()
 {
 	VkResult result;
-	result = vkAcquireNextImageKHR(g_deviceInfo.device, g_swapchainInfo.swapchain, 2000000000, g_presentInfo.semaphore, NULL, &g_swapchainInfo.nextImageIndex);
+	result = vkAcquireNextImageKHR(g_deviceInfo.device, g_swapchainInfo.swapchain, 2000000000, g_presentInfo.semaphore, VK_NULL_HANDLE, &g_swapchainInfo.nextImageIndex);
 
 	r_updateImageTransitionMemoryBarriers();
 
@@ -949,6 +955,196 @@ static void r_createUniformBuffer()
 	// TODO: maybe flush?
 }
 
+static void r_readImageFile(const char *file, Texture *texture)
+{
+	uint32_t componentsCount = 0;
+
+	unsigned char *stbiData = stbi_load(file, &texture->width, &texture->height, &componentsCount, STBI_rgb_alpha);
+	assert(componentsCount > 0);
+	texture->dataSize = texture->width * texture->height * 4;
+	texture->data = (unsigned char*)malloc(texture->dataSize);
+	memcpy(texture->data, stbiData, texture->dataSize);
+	
+	stbi_image_free(stbiData);
+}
+
+static void r_createTexture()
+{
+	Texture texture = { 0 };
+	r_readImageFile("../resources/doggo.jpg", &texture);
+	
+	// TODO: buffer creation helper function
+
+	VkResult result;
+
+	VkDeviceSize stagingBufferSize = texture.dataSize;
+
+	VkBufferCreateInfo stagingBufferCreateInfo = { 0 };
+	stagingBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	stagingBufferCreateInfo.pNext = NULL;
+	stagingBufferCreateInfo.flags = 0;
+	stagingBufferCreateInfo.size = stagingBufferSize;
+	stagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	stagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	
+	VkBuffer stagingBuffer;
+	result = vkCreateBuffer(g_deviceInfo.device, &stagingBufferCreateInfo, NULL, &stagingBuffer);
+	assert(result == VK_SUCCESS);
+	
+	VkMemoryRequirements stagingBufferMemoryRequirements;
+	vkGetBufferMemoryRequirements(g_deviceInfo.device, stagingBuffer, &stagingBufferMemoryRequirements);
+
+	// TODO: this should really be a function
+	int32_t memoryPropertyIndex = -1;
+	for (uint32_t i = 0; i < g_gpuInfo.memoryProperties.memoryTypeCount; i++)
+	{
+		if ((stagingBufferMemoryRequirements.memoryTypeBits & (1 << i)) && // the fuck?
+			(g_gpuInfo.memoryProperties.memoryTypes[i].propertyFlags & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+			== (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+		{
+			memoryPropertyIndex = (int32_t)i;
+		}
+	}
+
+	assert(memoryPropertyIndex >= 0);
+
+	VkMemoryAllocateInfo memoryAllocateInfo = { 0 };
+	memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	memoryAllocateInfo.pNext = NULL;
+	memoryAllocateInfo.allocationSize = stagingBufferMemoryRequirements.size;
+	memoryAllocateInfo.memoryTypeIndex = memoryPropertyIndex;
+	
+	VkDeviceMemory stagingBufferMemory;
+	result = vkAllocateMemory(g_deviceInfo.device, &memoryAllocateInfo, NULL, &stagingBufferMemory);
+	assert(result == VK_SUCCESS);
+
+	result = vkBindBufferMemory(g_deviceInfo.device, stagingBuffer, stagingBufferMemory, 0);
+	assert(result == VK_SUCCESS);
+
+	void *data;
+	result = vkMapMemory(g_deviceInfo.device, stagingBufferMemory, 0, stagingBufferSize, 0, &data);
+	assert(result == VK_SUCCESS);
+
+	memcpy(data, texture.data, texture.dataSize);
+	vkUnmapMemory(g_deviceInfo.device, stagingBufferMemory);
+
+	// TODO: maybe flush?
+
+	VkImageCreateInfo imageCreateInfo = { 0 };
+	imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageCreateInfo.pNext = NULL;
+	imageCreateInfo.flags = 0;
+	imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+	imageCreateInfo.extent.width = texture.width;
+	imageCreateInfo.extent.height = texture.height;
+	imageCreateInfo.extent.depth = 1;
+	imageCreateInfo.mipLevels = 1;
+	imageCreateInfo.arrayLayers = 1;
+	imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED; // preinitialized = preserve texels, undefined = discard texels
+
+	result = vkCreateImage(g_deviceInfo.device, &imageCreateInfo, NULL, &texture.image);
+	assert(result == VK_SUCCESS);
+
+	VkMemoryRequirements imageMemoryRequirements;
+	vkGetImageMemoryRequirements(g_deviceInfo.device, texture.image, &imageMemoryRequirements);
+
+	memoryPropertyIndex = -1;
+	for (uint32_t i = 0; i < g_gpuInfo.memoryProperties.memoryTypeCount; i++)
+	{
+		if ((imageMemoryRequirements.memoryTypeBits & (1 << i)) && // the fuck?
+			(g_gpuInfo.memoryProperties.memoryTypes[i].propertyFlags & (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+			== (VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+		{
+			memoryPropertyIndex = (int32_t)i;
+		}
+	}
+
+	assert(memoryPropertyIndex >= 0);
+
+	VkMemoryAllocateInfo imageMemoryAllocateInfo = { 0 };
+	imageMemoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	imageMemoryAllocateInfo.pNext = NULL;
+	imageMemoryAllocateInfo.allocationSize = imageMemoryRequirements.size;
+	imageMemoryAllocateInfo.memoryTypeIndex = memoryPropertyIndex;
+
+	result = vkAllocateMemory(g_deviceInfo.device, &imageMemoryAllocateInfo, NULL, &texture.imageMemory);
+	assert(result == VK_SUCCESS);
+
+	vkBindImageMemory(g_deviceInfo.device, texture.image, texture.imageMemory, 0);
+
+	// one off
+	VkCommandBufferAllocateInfo commandBufferAllocateInfo = { 0 };
+	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	commandBufferAllocateInfo.pNext = NULL;
+	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	commandBufferAllocateInfo.commandPool = g_presentCommandPoolInfo.commandPool;
+	commandBufferAllocateInfo.commandBufferCount = 1;
+
+	VkCommandBuffer commandBuffer;
+	result = vkAllocateCommandBuffers(g_deviceInfo.device, &commandBufferAllocateInfo, &commandBuffer);
+	assert(result == VK_SUCCESS);
+
+	VkCommandBufferBeginInfo commandBufferBeginInfo = { 0 };
+	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	commandBufferBeginInfo.pNext = NULL;
+	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	commandBufferBeginInfo.pInheritanceInfo = NULL;
+
+	VkImageMemoryBarrier imageMemoryBarrier = { 0 };
+	imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	imageMemoryBarrier.pNext = NULL;
+	imageMemoryBarrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+	imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+	imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	imageMemoryBarrier.image = texture.image;
+	imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	imageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+	imageMemoryBarrier.subresourceRange.levelCount = 1;
+	imageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+	imageMemoryBarrier.subresourceRange.layerCount = 1;
+
+	VkBufferImageCopy bufferImageCopy = { 0 };
+	bufferImageCopy.bufferOffset = 0;
+	bufferImageCopy.bufferRowLength = 0;
+	bufferImageCopy.bufferImageHeight = 0;
+	bufferImageCopy.imageExtent.width = texture.width;
+	bufferImageCopy.imageExtent.height = texture.height;
+	bufferImageCopy.imageExtent.depth = 1;
+	bufferImageCopy.imageOffset.x = 0;
+	bufferImageCopy.imageOffset.y = 0;
+	bufferImageCopy.imageOffset.z = 0;
+	bufferImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	bufferImageCopy.imageSubresource.mipLevel = 0;
+	bufferImageCopy.imageSubresource.baseArrayLayer = 0;
+	bufferImageCopy.imageSubresource.layerCount = 1;
+
+	result = vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
+	assert(result == VK_SUCCESS);
+
+	vkCmdPipelineBarrier(commandBuffer,
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+		0,
+		0, NULL,
+		0, NULL,
+		1, &imageMemoryBarrier);
+	vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, texture.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferImageCopy);
+
+	result = vkEndCommandBuffer(commandBuffer);
+	assert(result == VK_SUCCESS);
+
+	vkDestroyBuffer(g_deviceInfo.device, stagingBuffer, NULL);
+	vkFreeMemory(g_deviceInfo.device, stagingBufferMemory, NULL);
+}
+
 static void r_readShaders()
 {
 	FILE *vertexShader;
@@ -1180,8 +1376,8 @@ static void r_createDefaultGraphicsPipeline()
 	VkViewport viewport = { 0 };
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
-	viewport.width = g_presentInfo.imagesExtent.width; // TODO: ...isn't this NDC?
-	viewport.height = g_presentInfo.imagesExtent.height; // TODO: ...isn't this NDC?
+	viewport.width = g_presentInfo.imagesExtent.width;
+	viewport.height = g_presentInfo.imagesExtent.height; 
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 

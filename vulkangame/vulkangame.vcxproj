@@ -159,6 +159,7 @@
     <ClInclude Include="datatest.h" />
     <ClInclude Include="renderer.h" />
     <ClInclude Include="simd_math.h" />
+    <ClInclude Include="stb_image.h" />
     <ClInclude Include="vulkaninfo.h" />
   </ItemGroup>
   <ItemGroup>
