@@ -31,12 +31,12 @@ static struct Vertex test_vertices[3] = {
 };
 
 static struct Vertex test_quad[6] = {
-	{{-25.0f, 50.0f }, { 0.3f, 0.0f, 0.9f } },
+	{{-25.0f, 50.0f }, { 0.6f, 0.0f, 0.9f } },
 	{{25.0f, 0.0f}, { 0.3f, 0.0f, 0.9f } },
 	{{-25.0f, 0.0f }, { 0.3f, 0.0f, 0.9f } },
-	{{-25.0f, 50.0f }, { 0.3f, 0.0f, 0.9f } },
-	{{ 25.0f, 50.0f }, { 0.3f, 0.0f, 0.9f } },
-	{{25.0f, 0 }, {0.3f, 0.0f, 0.9f} }
+	{{-25.0f, 50.0f }, { 0.6f, 0.0f, 0.9f } },
+	{{ 25.0f, 50.0f }, { 0.6f, 0.0f, 0.9f } },
+	{{25.0f, 0.0f }, {0.3f, 0.0f, 0.9f} }
 };
 
 static struct Camera camera;
@@ -472,7 +472,7 @@ static void r_createPresentCommandPoolAndBuffers()
 				vkCmdBindVertexBuffers(g_presentCommandPoolInfo.commandBuffers[i], 0, 1, &g_vertexBuffer.buffer, &deviceSizeOffsets);
 				vkCmdBindDescriptorSets(g_presentCommandPoolInfo.commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS,
 					g_graphicsPipeline.layout, 0, 1, &g_descriptorInfo.set, 0, NULL);
-				vkCmdDraw(g_presentCommandPoolInfo.commandBuffers[i], sizeof(test_vertices) / sizeof(struct Vertex), 1, 0, 0);
+				vkCmdDraw(g_presentCommandPoolInfo.commandBuffers[i], sizeof(test_quad) / sizeof(struct Vertex), 1, 0, 0);
 			}
 			vkCmdEndRenderPass(g_presentCommandPoolInfo.commandBuffers[i]);
 		}
@@ -831,7 +831,7 @@ static void r_createVertexBuffer()
 	vertexBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	vertexBufferCreateInfo.pNext = NULL;
 	vertexBufferCreateInfo.flags = 0;
-	vertexBufferCreateInfo.size = sizeof(test_vertices);
+	vertexBufferCreateInfo.size = sizeof(test_quad);
 	vertexBufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 	vertexBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	vertexBufferCreateInfo.queueFamilyIndexCount = 1;
@@ -868,10 +868,10 @@ static void r_createVertexBuffer()
 	assert(result == VK_SUCCESS);
 
 	void *data;
-	result = vkMapMemory(g_deviceInfo.device, g_vertexBuffer.memory, 0, sizeof(test_vertices), 0, &data);
+	result = vkMapMemory(g_deviceInfo.device, g_vertexBuffer.memory, 0, sizeof(test_quad), 0, &data);
 	assert(result == VK_SUCCESS);
 
-	memcpy(data, test_vertices, sizeof(test_vertices));
+	memcpy(data, test_quad, sizeof(test_quad));
 	vkUnmapMemory(g_deviceInfo.device, g_vertexBuffer.memory);
 
 	// TODO: maybe flush?
@@ -890,6 +890,11 @@ static void r_createUniformBuffer()
 	Matrix4x4 cameraBasis = createMatrixSetDiagonals(1.0f, -1.0f, -1.0f, 1.0f);
 	Matrix4x4 cameraTransform = multiply(cameraBasis, cameraTranslation);
 	Matrix4x4 vpMatrix = multiply(camera.projection, cameraTransform);
+
+	Matrix4x4 scalingMatrix = createScalingMatrixXY(12.0f, 12.0f);
+	Matrix4x4 quadTranslation = createTranslationMatrix(0.0f, -300.0f, 0.0f);
+	Matrix4x4 modelTransform = multiply(quadTranslation, scalingMatrix);
+	vpMatrix = multiply(vpMatrix, modelTransform);
 
 	VkDeviceSize uniformBufferSize = 16 * sizeof(float);
 	

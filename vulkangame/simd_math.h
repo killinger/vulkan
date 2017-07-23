@@ -122,6 +122,33 @@ Matrix4x4 createTranslationMatrix(
 	return matrix;
 }
 
+Matrix4x4 createScalingMatrixXY(float xScale, float yScale)
+{
+	Matrix4x4 matrix = { 0 };
+
+	matrix.e[0] = xScale;
+	matrix.e[1] = 0.0f;
+	matrix.e[2] = 0.0f;
+	matrix.e[3] = 0.0f;
+
+	matrix.e[4] = 0.0f;
+	matrix.e[5] = yScale;
+	matrix.e[6] = 0.0f;
+	matrix.e[7] = 0.0f;
+
+	matrix.e[8] = 0.0f;
+	matrix.e[9] = 0.0f;
+	matrix.e[10] = 1.0f;
+	matrix.e[11] = 0.0f;
+
+	matrix.e[12] = 0.0f;
+	matrix.e[13] = 0.0f;
+	matrix.e[14] = 0.0f;
+	matrix.e[15] = 1.0f;
+
+	return matrix;
+}
+
 // TODO: simd implementation?
 Matrix4x4 multiply(Matrix4x4 m1, Matrix4x4 m2)
 {
@@ -154,7 +181,7 @@ Matrix4x4 multiply(Matrix4x4 m1, Matrix4x4 m2)
 	return result;
 }
 
-Matrix4x4 createMatrixSetDiagonals(float x, float z, float y, float h)
+Matrix4x4 createMatrixSetDiagonals(float x, float y, float z, float h)
 {
 	Matrix4x4 matrix = { 0 };
 
