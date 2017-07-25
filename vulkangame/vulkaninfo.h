@@ -117,7 +117,9 @@ typedef struct Texture
 	uint32_t width;
 	uint32_t height;
 	VkImage image;
+	VkImageView imageView;
 	VkDeviceMemory imageMemory;
+	VkSampler sampler;
 } Texture;
 
 typedef struct OsParams

@@ -110,7 +110,7 @@ void r_initVulkan(OsParams params)
 	//createOrthographicProjectionMatrix(&camera.orthographicProjection, -1.0f, 1.0f, -1.0f, 1.0f, 0.1f, 10.0f);
 	//createOrthographicProjectionMatrix(&camera.projection, 0.0f, 1280.0f, 0.0f, 720.0f, 0.1f, 10.0f);
 
-	camera.projection = createOrthographicProjectionMatrix(-1280.0f/2, 1280.0f/2, -720.0f/2, 720.0f/2, 0.1f, 10.0f);
+	camera.projection = createOrthographicProjectionMatrix(-1280.0f / 2, 1280.0f / 2, -720.0f / 2, 720.0f / 2, 0.1f, 10.0f);
 	camera.x = 2.0f;
 	camera.y = 2.0f;
 
@@ -903,7 +903,7 @@ static void r_createUniformBuffer()
 	vpMatrix = multiply(vpMatrix, modelTransform);
 
 	VkDeviceSize uniformBufferSize = 16 * sizeof(float);
-	
+
 	VkBufferCreateInfo uniformBufferCreateInfo = { 0 };
 	uniformBufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	uniformBufferCreateInfo.pNext = NULL;
@@ -964,7 +964,7 @@ static void r_readImageFile(const char *file, Texture *texture)
 	texture->dataSize = texture->width * texture->height * 4;
 	texture->data = (unsigned char*)malloc(texture->dataSize);
 	memcpy(texture->data, stbiData, texture->dataSize);
-	
+
 	stbi_image_free(stbiData);
 }
 
@@ -972,7 +972,7 @@ static void r_createTexture()
 {
 	Texture texture = { 0 };
 	r_readImageFile("../resources/doggo.jpg", &texture);
-	
+
 	// TODO: buffer creation helper function
 
 	VkResult result;
@@ -986,11 +986,11 @@ static void r_createTexture()
 	stagingBufferCreateInfo.size = stagingBufferSize;
 	stagingBufferCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	stagingBufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	
+
 	VkBuffer stagingBuffer;
 	result = vkCreateBuffer(g_deviceInfo.device, &stagingBufferCreateInfo, NULL, &stagingBuffer);
 	assert(result == VK_SUCCESS);
-	
+
 	VkMemoryRequirements stagingBufferMemoryRequirements;
 	vkGetBufferMemoryRequirements(g_deviceInfo.device, stagingBuffer, &stagingBufferMemoryRequirements);
 
@@ -1013,7 +1013,7 @@ static void r_createTexture()
 	memoryAllocateInfo.pNext = NULL;
 	memoryAllocateInfo.allocationSize = stagingBufferMemoryRequirements.size;
 	memoryAllocateInfo.memoryTypeIndex = memoryPropertyIndex;
-	
+
 	VkDeviceMemory stagingBufferMemory;
 	result = vkAllocateMemory(g_deviceInfo.device, &memoryAllocateInfo, NULL, &stagingBufferMemory);
 	assert(result == VK_SUCCESS);
@@ -1143,12 +1143,55 @@ static void r_createTexture()
 
 	vkDestroyBuffer(g_deviceInfo.device, stagingBuffer, NULL);
 	vkFreeMemory(g_deviceInfo.device, stagingBufferMemory, NULL);
+
+	VkImageViewCreateInfo imageViewCreateInfo = { 0 };
+	imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	imageViewCreateInfo.pNext = NULL;
+	imageViewCreateInfo.flags = 0;
+	imageViewCreateInfo.image = texture.image;
+	imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	imageViewCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+	imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+	imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+	imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+	imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+	imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+	imageViewCreateInfo.subresourceRange.levelCount = 1;
+	imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	imageViewCreateInfo.subresourceRange.layerCount = 1;
+
+	result = vkCreateImageView(g_deviceInfo.device, &imageViewCreateInfo, NULL, &texture.imageView);
+	assert(result == VK_SUCCESS);
+
+	VkSamplerCreateInfo samplerCreateInfo = { 0 };
+	samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerCreateInfo.pNext = NULL;
+	samplerCreateInfo.flags = 0;
+	samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+	samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+	samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerCreateInfo.mipLodBias = 0.0f;
+	samplerCreateInfo.anisotropyEnable = VK_FALSE;
+	samplerCreateInfo.maxAnisotropy = 1;
+	samplerCreateInfo.compareEnable = VK_FALSE;
+	samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+	samplerCreateInfo.minLod = 0.0f;
+	samplerCreateInfo.maxLod = 0.0f;
+	samplerCreateInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+
+	result = vkCreateSampler(g_deviceInfo.device, &samplerCreateInfo, NULL, &texture.sampler);
+	assert(result == VK_SUCCESS);
 }
 
 static void r_readShaders()
 {
 	FILE *vertexShader;
-	assert(fopen_s(&vertexShader, "vert.spv", "rb") != EINVAL);
+	assert(fopen_s(&vertexShader, "../vulkangame/vert.spv", "rb") != EINVAL);
 
 	fseek(vertexShader, 0, SEEK_END);
 	size_t vertexShaderFileSize = ftell(vertexShader);
@@ -1162,7 +1205,7 @@ static void r_readShaders()
 	fclose(vertexShader);
 
 	FILE *fragShader;
-	assert(fopen_s(&fragShader, "frag.spv", "rb") != EINVAL);
+	assert(fopen_s(&fragShader, "../vulkangame/frag.spv", "rb") != EINVAL);
 
 	fseek(fragShader, 0, SEEK_END);
 	size_t fragShaderFileSize = ftell(fragShader);
@@ -1259,19 +1302,32 @@ static void r_createDescriptorSetLayout()
 {
 	VkResult result;
 
-	VkDescriptorSetLayoutBinding descriptorSetLayoutBinding = { 0 };
-	descriptorSetLayoutBinding.binding = 0;
-	descriptorSetLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	descriptorSetLayoutBinding.descriptorCount = 1;
-	descriptorSetLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	descriptorSetLayoutBinding.pImmutableSamplers = NULL;
+	VkDescriptorSetLayoutBinding uniformBufferLayoutBinding = { 0 };
+	uniformBufferLayoutBinding.binding = 0;
+	uniformBufferLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uniformBufferLayoutBinding.descriptorCount = 1;
+	uniformBufferLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	uniformBufferLayoutBinding.pImmutableSamplers = NULL;
+
+	VkDescriptorSetLayoutBinding samplerLayoutBinding = { 0 };
+	samplerLayoutBinding.binding = 1;
+	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	samplerLayoutBinding.descriptorCount = 1;
+	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	samplerLayoutBinding.pImmutableSamplers = NULL;
+
+	VkDescriptorSetLayoutBinding descriptorSetLayoutBindings[] =
+	{
+		uniformBufferLayoutBinding,
+		samplerLayoutBinding
+	};
 
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = { 0 };
 	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	descriptorSetLayoutCreateInfo.pNext = NULL;
 	descriptorSetLayoutCreateInfo.flags = 0;
-	descriptorSetLayoutCreateInfo.bindingCount = 1;
-	descriptorSetLayoutCreateInfo.pBindings = &descriptorSetLayoutBinding;
+	descriptorSetLayoutCreateInfo.bindingCount = 2;
+	descriptorSetLayoutCreateInfo.pBindings = &descriptorSetLayoutBindings;
 
 	result = vkCreateDescriptorSetLayout(g_deviceInfo.device, &descriptorSetLayoutCreateInfo, NULL, &g_descriptorInfo.setLayout);
 	assert(result == VK_SUCCESS);
@@ -1281,18 +1337,19 @@ static void r_createDescriptorPool()
 {
 	VkResult result;
 
-	VkDescriptorPoolSize descriptorPoolSize = { 0 };
-	descriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	descriptorPoolSize.descriptorCount = 1;
+	VkDescriptorPoolSize descriptorPoolSizes[] = {
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }
+	};
 
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = { 0 };
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolCreateInfo.pNext = NULL;
 	descriptorPoolCreateInfo.flags = 0;
-	descriptorPoolCreateInfo.poolSizeCount = 1;
-	descriptorPoolCreateInfo.pPoolSizes = &descriptorPoolSize;
+	descriptorPoolCreateInfo.poolSizeCount = 2;
+	descriptorPoolCreateInfo.pPoolSizes = &descriptorPoolSizes;
 	descriptorPoolCreateInfo.maxSets = 1;
-	
+
 	result = vkCreateDescriptorPool(g_deviceInfo.device, &descriptorPoolCreateInfo, NULL, &g_descriptorInfo.pool);
 	assert(result == VK_SUCCESS);
 }
@@ -1377,7 +1434,7 @@ static void r_createDefaultGraphicsPipeline()
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
 	viewport.width = g_presentInfo.imagesExtent.width;
-	viewport.height = g_presentInfo.imagesExtent.height; 
+	viewport.height = g_presentInfo.imagesExtent.height;
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 
