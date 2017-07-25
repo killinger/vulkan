@@ -970,7 +970,7 @@ static void r_readImageFile(const char *file, Texture *texture)
 	stbi_image_free(stbiData);
 }
 
-// signature
+// TODO: signature
 // helper functions
 
 static int32_t r_findCompatibleMemoryIndex(
@@ -1044,6 +1044,22 @@ static VkDeviceMemory r_allocateBufferMemory(
 	assert(result == VK_SUCCESS);
 
 	return bufferMemory;
+}
+
+static VkSemaphore r_createSemaphore(VkDevice device)
+{
+	VkResult result;
+	VkSemaphore semaphore;
+
+	VkSemaphoreCreateInfo semaphoreCreateInfo = { 0 };
+	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	semaphoreCreateInfo.pNext = NULL;
+	semaphoreCreateInfo.flags = 0;
+
+	result = vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &semaphore);
+	assert(result == VK_SUCCESS);
+
+	return semaphore;
 }
 
 static Vertex *r_createQuad(uint32_t width, uint32_t height)
