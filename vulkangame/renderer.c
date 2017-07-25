@@ -11,10 +11,10 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-struct Vertex {
+typedef struct Vertex {
 	float pos[2];
 	float color[3];
-};
+} Vertex;
 
 struct Camera
 {
@@ -660,7 +660,7 @@ static void r_createPresentationSwapchainImageViews()
 	g_swapchainInfo.imageSubresourceRange.layerCount = 1;
 
 	VkImageViewCreateInfo *imageViewCreateInfos =
-		(VkImageViewCreateInfo*)malloc(g_swapchainInfo.imagesCount * sizeof(VkImageViewCreateInfo)); // TODO: free
+		(VkImageViewCreateInfo*)malloc(g_swapchainInfo.imagesCount * sizeof(VkImageViewCreateInfo));
 	g_swapchainInfo.imageViews =
 		(VkImageView*)malloc(g_swapchainInfo.imagesCount * sizeof(VkImageView)); // TODO: free
 	for (uint32_t i = 0; i < g_swapchainInfo.imagesCount; i++)
@@ -680,6 +680,8 @@ static void r_createPresentationSwapchainImageViews()
 		result = vkCreateImageView(g_deviceInfo.device, &imageViewCreateInfos[i], NULL, &g_swapchainInfo.imageViews[i]);
 		assert(result == VK_SUCCESS);
 	}
+
+	free(imageViewCreateInfos);
 }
 
 static void r_createPresentationSynchronizationPrimitives()
@@ -967,6 +969,110 @@ static void r_readImageFile(const char *file, Texture *texture)
 
 	stbi_image_free(stbiData);
 }
+
+// signature
+// helper functions
+
+static int32_t r_findCompatibleMemoryIndex(
+	VkMemoryRequirements memoryRequirements, 
+	VkPhysicalDeviceMemoryProperties memoryProperties,
+	VkMemoryPropertyFlags memoryPropertyFlags)
+{
+	// TODO: this should really be a function
+	int32_t memoryPropertyIndex = -1;
+	for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++)
+	{
+		if ((memoryRequirements.memoryTypeBits & (1 << i)) && // the fuck?
+			(memoryProperties.memoryTypes[i].propertyFlags & memoryPropertyFlags)
+			== memoryPropertyFlags)
+		{
+			memoryPropertyIndex = (int32_t)i;
+			break;
+		}
+	}
+	return memoryPropertyIndex;
+}
+
+static VkBuffer r_createBuffer(
+	VkDevice device, 
+	VkDeviceSize bufferSize, 
+	VkBufferUsageFlags usageFlags)
+{
+	VkBuffer buffer;
+	VkResult result;
+
+	VkBufferCreateInfo bufferCreateInfo = { 0 };
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.pNext = NULL;
+	bufferCreateInfo.flags = 0;
+	bufferCreateInfo.size = bufferSize;
+	bufferCreateInfo.usage = usageFlags;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	result = vkCreateBuffer(device, &bufferCreateInfo, NULL, &buffer);
+	assert(result == VK_SUCCESS);
+
+	return buffer;
+}
+
+static VkDeviceMemory r_allocateBufferMemory(
+	VkDevice device,
+	VkBuffer buffer, 
+	VkPhysicalDeviceMemoryProperties memoryProperties,
+	VkMemoryPropertyFlags memoryPropertyFlags
+	)
+{
+	VkResult result;
+
+	VkMemoryRequirements bufferMemoryRequirements;
+	vkGetBufferMemoryRequirements(device, buffer, &bufferMemoryRequirements);
+
+	int32_t memoryTypeIndex = r_findCompatibleMemoryIndex(
+		bufferMemoryRequirements,
+		memoryProperties,
+		memoryPropertyFlags);
+	assert(memoryTypeIndex >= 0);
+
+	VkMemoryAllocateInfo bufferMemoryAllocateInfo = { 0 };
+	bufferMemoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	bufferMemoryAllocateInfo.pNext = NULL;
+	bufferMemoryAllocateInfo.allocationSize = bufferMemoryRequirements.size;
+	bufferMemoryAllocateInfo.memoryTypeIndex = memoryTypeIndex;
+
+	VkDeviceMemory bufferMemory;
+	result = vkAllocateMemory(device, &bufferMemoryAllocateInfo, NULL, &bufferMemory);
+	assert(result == VK_SUCCESS);
+
+	return bufferMemory;
+}
+
+static Vertex *r_createQuad(uint32_t width, uint32_t height)
+{
+	Vertex *quad = (Vertex*)malloc(6 * sizeof(Vertex));
+	// First triangle
+	quad[0].pos[0] = -width / 2.0f; // top left
+	quad[0].pos[1] = height;
+
+	quad[1].pos[0] = width / 2.0f; // bottom right
+	quad[1].pos[1] = 0.0f;
+
+	quad[2].pos[0] = -width / 2.0f; // bottom left
+	quad[2].pos[1] = 0.0f;
+
+	// Second triangle
+	quad[3].pos[0] = -width / 2.0f; // top left
+	quad[3].pos[1] = height;
+
+	quad[4].pos[0] = width / 2.0f; // top right
+	quad[4].pos[1] = height;
+
+	quad[5].pos[0] = width / 2.0f; // bottom right
+	quad[5].pos[1] = 0.0f;
+
+	return quad;
+}
+
+// end
 
 static void r_createTexture()
 {
