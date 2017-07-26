@@ -42,6 +42,9 @@ static struct Vertex test_quad[6] = {
 };
 
 static struct Camera camera;
+Texture texture = { 0 };
+//TODO: ORDER OF OPERATIONS:
+//		... -> Read textures -> Create texture images+ -> Create uniform buffers+
 
 // File scope functions
 // TODO: fix conventions
@@ -1092,7 +1095,6 @@ static Vertex *r_createQuad(uint32_t width, uint32_t height)
 
 static void r_createTexture()
 {
-	Texture texture = { 0 };
 	r_readImageFile("../resources/doggo.jpg", &texture);
 
 	// TODO: buffer creation helper function
@@ -1495,18 +1497,32 @@ static void r_createDescriptorSet()
 	descriptorBufferInfo.offset = 0;
 	descriptorBufferInfo.range = sizeof(Matrix4x4);
 
-	VkWriteDescriptorSet writeDescriptorSet = { 0 };
-	writeDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeDescriptorSet.dstSet = g_descriptorInfo.set;
-	writeDescriptorSet.dstBinding = 0;
-	writeDescriptorSet.dstArrayElement = 0;
-	writeDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	writeDescriptorSet.descriptorCount = 1;
-	writeDescriptorSet.pBufferInfo = &descriptorBufferInfo;
-	writeDescriptorSet.pImageInfo = NULL;
-	writeDescriptorSet.pTexelBufferView = NULL;
+	VkDescriptorImageInfo descriptorImageInfo = { 0 };
+	descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	descriptorImageInfo.imageView = texture.imageView;
+	descriptorImageInfo.sampler = texture.sampler;
 
-	vkUpdateDescriptorSets(g_deviceInfo.device, 1, &writeDescriptorSet, 0, NULL);
+	VkWriteDescriptorSet writeDescriptorSets[2];
+	writeDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDescriptorSets[0].dstSet = g_descriptorInfo.set;
+	writeDescriptorSets[0].dstBinding = 0;
+	writeDescriptorSets[0].dstArrayElement = 0;
+	writeDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeDescriptorSets[0].descriptorCount = 1;
+	writeDescriptorSets[0].pBufferInfo = &descriptorBufferInfo;
+	writeDescriptorSets[0].pImageInfo = NULL;
+	writeDescriptorSets[0].pTexelBufferView = NULL;
+
+	writeDescriptorSets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeDescriptorSets[1].pNext = NULL;
+	writeDescriptorSets[1].dstSet = g_descriptorInfo.set;
+	writeDescriptorSets[1].dstBinding = 1;
+	writeDescriptorSets[1].dstArrayElement = 0;
+	writeDescriptorSets[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeDescriptorSets[1].descriptorCount = 1;
+	writeDescriptorSets[1].pImageInfo = &descriptorImageInfo;
+
+	vkUpdateDescriptorSets(g_deviceInfo.device, 2, writeDescriptorSets, 0, NULL);
 }
 
 static void r_createDefaultGraphicsPipeline()
