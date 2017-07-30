@@ -153,13 +153,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.c" />
-    <ClCompile Include="renderer.c" />
+    <ClCompile Include="vkrenderer.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="datatest.h" />
-    <ClInclude Include="renderer.h" />
     <ClInclude Include="simd_math.h" />
     <ClInclude Include="stb_image.h" />
+    <ClInclude Include="vkrenderer.h" />
     <ClInclude Include="vulkaninfo.h" />
   </ItemGroup>
   <ItemGroup>

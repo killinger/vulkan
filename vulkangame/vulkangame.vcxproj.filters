@@ -24,7 +24,7 @@
     <ClCompile Include="main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="renderer.c">
+    <ClCompile Include="vkrenderer.c">
       <Filter>Renderer</Filter>
     </ClCompile>
   </ItemGroup>
@@ -38,11 +38,11 @@
     <ClInclude Include="simd_math.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="renderer.h">
-      <Filter>Renderer</Filter>
-    </ClInclude>
     <ClInclude Include="stb_image.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="vkrenderer.h">
+      <Filter>Renderer</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

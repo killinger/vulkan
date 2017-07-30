@@ -974,19 +974,18 @@ static void r_readImageFile(const char *file, Texture *texture)
 }
 
 // TODO: signature
-// helper functions
+// helper functions + clean up
 
 static int32_t r_findCompatibleMemoryIndex(
 	VkMemoryRequirements memoryRequirements, 
-	VkPhysicalDeviceMemoryProperties memoryProperties,
+	VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties,
 	VkMemoryPropertyFlags memoryPropertyFlags)
 {
-	// TODO: this should really be a function
 	int32_t memoryPropertyIndex = -1;
-	for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; i++)
+	for (uint32_t i = 0; i < physicalDeviceMemoryProperties.memoryTypeCount; i++)
 	{
 		if ((memoryRequirements.memoryTypeBits & (1 << i)) && // the fuck?
-			(memoryProperties.memoryTypes[i].propertyFlags & memoryPropertyFlags)
+			(physicalDeviceMemoryProperties.memoryTypes[i].propertyFlags & memoryPropertyFlags)
 			== memoryPropertyFlags)
 		{
 			memoryPropertyIndex = (int32_t)i;
@@ -996,12 +995,52 @@ static int32_t r_findCompatibleMemoryIndex(
 	return memoryPropertyIndex;
 }
 
+static VkCommandPool r_createCommandPool(
+	VkDevice device,
+	uint32_t queueFamilyIndex)
+{
+	VkResult result;
+	
+	VkCommandPoolCreateInfo commandPoolCreateInfo = { 0 };
+	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	commandPoolCreateInfo.pNext = NULL;
+	commandPoolCreateInfo.flags = 0;
+	commandPoolCreateInfo.queueFamilyIndex = queueFamilyIndex;
+	
+	VkCommandPool commandPool;
+	result = vkCreateCommandPool(g_deviceInfo.device, &commandPoolCreateInfo, NULL, &commandPool);
+	assert(result == VK_SUCCESS);
+
+	return commandPool;
+}
+
+static VkCommandBuffer *r_allocateCommandBuffers(
+	VkDevice device,
+	VkCommandPool commandPool,
+	VkCommandBufferLevel commandBufferLevel,
+	uint32_t commandBufferCount)
+{
+	VkResult result;
+
+	VkCommandBufferAllocateInfo commandBufferAllocateInfo = { 0 };
+	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	commandBufferAllocateInfo.pNext = NULL;
+	commandBufferAllocateInfo.commandPool = commandPool;
+	commandBufferAllocateInfo.level = commandBufferLevel;
+	commandBufferAllocateInfo.commandBufferCount = commandBufferCount;
+
+	VkCommandBuffer *commandBuffers;
+	result = vkAllocateCommandBuffers(device, &commandBufferAllocateInfo, commandBuffers);
+	assert(result == VK_SUCCESS);
+
+	return commandBuffers;
+}
+
 static VkBuffer r_createBuffer(
 	VkDevice device, 
 	VkDeviceSize bufferSize, 
 	VkBufferUsageFlags usageFlags)
 {
-	VkBuffer buffer;
 	VkResult result;
 
 	VkBufferCreateInfo bufferCreateInfo = { 0 };
@@ -1012,6 +1051,7 @@ static VkBuffer r_createBuffer(
 	bufferCreateInfo.usage = usageFlags;
 	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
+	VkBuffer buffer;
 	result = vkCreateBuffer(device, &bufferCreateInfo, NULL, &buffer);
 	assert(result == VK_SUCCESS);
 
@@ -1021,7 +1061,7 @@ static VkBuffer r_createBuffer(
 static VkDeviceMemory r_allocateBufferMemory(
 	VkDevice device,
 	VkBuffer buffer, 
-	VkPhysicalDeviceMemoryProperties memoryProperties,
+	VkPhysicalDeviceMemoryProperties physicalDeviceMemoryProperties,
 	VkMemoryPropertyFlags memoryPropertyFlags
 	)
 {
@@ -1032,7 +1072,7 @@ static VkDeviceMemory r_allocateBufferMemory(
 
 	int32_t memoryTypeIndex = r_findCompatibleMemoryIndex(
 		bufferMemoryRequirements,
-		memoryProperties,
+		physicalDeviceMemoryProperties,
 		memoryPropertyFlags);
 	assert(memoryTypeIndex >= 0);
 
@@ -1052,20 +1092,20 @@ static VkDeviceMemory r_allocateBufferMemory(
 static VkSemaphore r_createSemaphore(VkDevice device)
 {
 	VkResult result;
-	VkSemaphore semaphore;
-
+	
 	VkSemaphoreCreateInfo semaphoreCreateInfo = { 0 };
 	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 	semaphoreCreateInfo.pNext = NULL;
 	semaphoreCreateInfo.flags = 0;
-
+	
+	VkSemaphore semaphore;
 	result = vkCreateSemaphore(device, &semaphoreCreateInfo, NULL, &semaphore);
 	assert(result == VK_SUCCESS);
 
 	return semaphore;
 }
 
-static Vertex *r_createQuad(uint32_t width, uint32_t height)
+static Vertex *r_createQuad(float width, float height)
 {
 	Vertex *quad = (Vertex*)malloc(6 * sizeof(Vertex));
 	// First triangle
