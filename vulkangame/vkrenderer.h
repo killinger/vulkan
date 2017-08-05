@@ -1,5 +1,6 @@
 #pragma once
 HWND r_initVkRenderer(HINSTANCE hInstance, int nShowCmd);
+void r_renderFrame();
 
 typedef struct PresentationInfo
 {
@@ -21,7 +22,7 @@ typedef struct ShaderInfo
 typedef struct Vertex
 {
 	float position[2];
-	float color[4];
+	float color[3];
 	float textureCoordinates[2];
 } Vertex;
 

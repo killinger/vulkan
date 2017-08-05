@@ -3,13 +3,14 @@
 #include <Windows.h>
 #include <assert.h>
 #include <tchar.h>
-//#include "vulkaninfo.h"
 #include "vulkan\vulkan.h"
 #include "datatest.h"
-//#include "renderer.h"
 #include "vkrenderer.h"
 
-#define FRAME_TIME 1000.0/60.0
+#define MS_PER_SECOND 1000.0
+#define MAX_FRAMERATE 60.0
+
+const double MAX_FRAME_TIME = MS_PER_SECOND / MAX_FRAMERATE;
 
 void dllTest()
 {
@@ -24,36 +25,32 @@ void dllTest()
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
-	//OsParams params = { 0 };
-	//params.hInstance = hInstance;
-	//params.hPrevInstance = hPrevInstance;
-	//params.lpCmdLine = lpCmdLine;
-	//params.nShowCmd = nShowCmd;
-
-	//r_initVulkan(params);
-	//r_renderFrame();
-
-	//PresentInfo prsntinfo = r_test_getPresentInfo();
-	//SwapchainInfo swapchaininfo = r_test_getSwapchainInfo();
-
-	//r_showWindow();
-	//r_handleOSMessages();
-
-	HWND window = r_initVkRenderer(hInstance, nShowCmd);
-
+	HWND window = r_initVkRenderer(hInstance, nShowCmd);	
 	MSG msg;
 	
 	while (1)
 	{
-		while (PeekMessage(&msg, window, 0, 0, PM_REMOVE))
+		if (PeekMessage(&msg, window, 0, 0, PM_REMOVE))
 		{
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
-		DWORD start = GetTickCount();
+		LARGE_INTEGER startPerformanceCount;
+		LARGE_INTEGER endPerformanceCount;
+		LARGE_INTEGER performanceFrequency;
 
+		QueryPerformanceCounter(&startPerformanceCount);
+		QueryPerformanceFrequency(&performanceFrequency);
+		double cpuFrequency = (double)performanceFrequency.QuadPart / 1000.0;	
+		
+		r_renderFrame();
 
-		Sleep(start + FRAME_TIME - GetTickCount());
+		QueryPerformanceCounter(&endPerformanceCount);
+		double frameTime = (double)(endPerformanceCount.QuadPart - startPerformanceCount.QuadPart)/cpuFrequency;
+		
+		if (MAX_FRAME_TIME > frameTime)
+			Sleep(MAX_FRAME_TIME - frameTime);
+			
 	}
 	
 	return msg.wParam;

@@ -1,7 +1,8 @@
 #pragma once
 #include <stdint.h>
 #include <xmmintrin.h>
-
+#define _USE_MATH_DEFINES   
+#include <math.h>  
 
 // NOTE: +Y is down in Vulkan
 // https://software.intel.com/sites/landingpage/IntrinsicsGuide/
@@ -122,7 +123,7 @@ Matrix4x4 createTranslationMatrix(
 	return matrix;
 }
 
-Matrix4x4 createScalingMatrixXY(float xScale, float yScale)
+Matrix4x4 createScalingMatrix2D(float xScale, float yScale)
 {
 	Matrix4x4 matrix = { 0 };
 
@@ -149,8 +150,35 @@ Matrix4x4 createScalingMatrixXY(float xScale, float yScale)
 	return matrix;
 }
 
+Matrix4x4 createRotationMatrix2D(float angle)
+{
+	Matrix4x4 matrix = { 0 };
+
+	matrix.e[0] = (float)cos((double)angle);
+	matrix.e[1] = (float)sin((double)angle);
+	matrix.e[2] = 0.0f;
+	matrix.e[3] = 0.0f;
+
+	matrix.e[4] = -(float)sin((double)angle);
+	matrix.e[5] = (float)cos((double)angle);
+	matrix.e[6] = 0.0f;
+	matrix.e[7] = 0.0f;
+
+	matrix.e[8] = 0.0f;
+	matrix.e[9] = 0.0f;
+	matrix.e[10] = 1.0f;
+	matrix.e[11] = 0.0f;
+
+	matrix.e[12] = 0.0f;
+	matrix.e[13] = 0.0f;
+	matrix.e[14] = 0.0f;
+	matrix.e[15] = 1.0f;
+
+	return matrix;
+}
+
 // TODO: simd implementation?
-Matrix4x4 multiply(Matrix4x4 m1, Matrix4x4 m2)
+Matrix4x4 multiply_m2(Matrix4x4 m1, Matrix4x4 m2)
 {
 	Matrix4x4 result = { 0 };
 
@@ -181,6 +209,11 @@ Matrix4x4 multiply(Matrix4x4 m1, Matrix4x4 m2)
 	return result;
 }
 
+Matrix4x4 multiply_m3(Matrix4x4 m1, Matrix4x4 m2, Matrix4x4 m3)
+{
+	return multiply_m2(multiply_m2(m1, m2), m3);
+}
+
 Matrix4x4 createMatrixSetDiagonals(float x, float y, float z, float h)
 {
 	Matrix4x4 matrix = { 0 };
@@ -206,4 +239,9 @@ Matrix4x4 createMatrixSetDiagonals(float x, float y, float z, float h)
 	matrix.e[15] = h;
 
 	return matrix;
+}
+
+inline float degreesToRadians(float degrees)
+{
+	return degrees * ((float)M_PI / 180.0f);
 }
