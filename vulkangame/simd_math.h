@@ -55,6 +55,17 @@
 //	return result;
 //}
 
+typedef struct Vector2
+{
+	float x;
+	float y;
+} Vector2;
+
+typedef struct Vector4
+{
+	float e[4];
+} Vector4;
+
 typedef struct Matrix4x4
 {
 	float e[16];
@@ -66,182 +77,26 @@ Matrix4x4 createOrthographicProjectionMatrix(
 	float topPlane,
 	float bottomPlane,
 	float nearPlane,
-	float farPlane)
-{
-	Matrix4x4 matrix = { 0 };
-
-	matrix.e[0] = 2.0f / (rightPlane - leftPlane);
-	matrix.e[1] = 0.0f;
-	matrix.e[2] = 0.0f;
-	matrix.e[3] = 0.0f;
-
-	matrix.e[4] = 0.0f;
-	matrix.e[5] = 2.0f / (bottomPlane - topPlane);
-	matrix.e[6] = 0.0f;
-	matrix.e[7] = 0.0f;
-
-	matrix.e[8] = 0.0f;
-	matrix.e[9] = 0.0f;
-	matrix.e[10] = 1.0f / (nearPlane - farPlane);
-	matrix.e[11] = 0.0f;
-
-	matrix.e[12] = -(rightPlane + leftPlane) / (rightPlane - leftPlane);
-	matrix.e[13] = -(bottomPlane + topPlane) / (bottomPlane - topPlane);
-	matrix.e[14] = nearPlane / (nearPlane - farPlane);
-	matrix.e[15] = 1.0f;
-
-	return matrix;
-}
+	float farPlane);
 
 Matrix4x4 createTranslationMatrix(
 	float x,
 	float y,
-	float z)
-{
-	Matrix4x4 matrix = { 0 };
+	float z);
 
-	matrix.e[0] = 1.0f;
-	matrix.e[1] = 0.0f;
-	matrix.e[2] = 0.0f;
-	matrix.e[3] = 0.0f;
+Matrix4x4 createScalingMatrix2D(float xScale, float yScale);
 
-	matrix.e[4] = 0.0f;
-	matrix.e[5] = 1.0f;
-	matrix.e[6] = 0.0f;
-	matrix.e[7] = 0.0f;
-
-	matrix.e[8] = 0.0f;
-	matrix.e[9] = 0.0f;
-	matrix.e[10] = 1.0f;
-	matrix.e[11] = 0.0f;
-
-	matrix.e[12] = x;
-	matrix.e[13] = y;
-	matrix.e[14] = z;
-	matrix.e[15] = 1.0f;
-
-	return matrix;
-}
-
-Matrix4x4 createScalingMatrix2D(float xScale, float yScale)
-{
-	Matrix4x4 matrix = { 0 };
-
-	matrix.e[0] = xScale;
-	matrix.e[1] = 0.0f;
-	matrix.e[2] = 0.0f;
-	matrix.e[3] = 0.0f;
-
-	matrix.e[4] = 0.0f;
-	matrix.e[5] = yScale;
-	matrix.e[6] = 0.0f;
-	matrix.e[7] = 0.0f;
-
-	matrix.e[8] = 0.0f;
-	matrix.e[9] = 0.0f;
-	matrix.e[10] = 1.0f;
-	matrix.e[11] = 0.0f;
-
-	matrix.e[12] = 0.0f;
-	matrix.e[13] = 0.0f;
-	matrix.e[14] = 0.0f;
-	matrix.e[15] = 1.0f;
-
-	return matrix;
-}
-
-Matrix4x4 createRotationMatrix2D(float angle)
-{
-	Matrix4x4 matrix = { 0 };
-
-	matrix.e[0] = (float)cos((double)angle);
-	matrix.e[1] = (float)sin((double)angle);
-	matrix.e[2] = 0.0f;
-	matrix.e[3] = 0.0f;
-
-	matrix.e[4] = -(float)sin((double)angle);
-	matrix.e[5] = (float)cos((double)angle);
-	matrix.e[6] = 0.0f;
-	matrix.e[7] = 0.0f;
-
-	matrix.e[8] = 0.0f;
-	matrix.e[9] = 0.0f;
-	matrix.e[10] = 1.0f;
-	matrix.e[11] = 0.0f;
-
-	matrix.e[12] = 0.0f;
-	matrix.e[13] = 0.0f;
-	matrix.e[14] = 0.0f;
-	matrix.e[15] = 1.0f;
-
-	return matrix;
-}
+Matrix4x4 createRotationMatrix2D(float angle);
 
 // TODO: simd implementation?
-Matrix4x4 multiply_m2(Matrix4x4 m1, Matrix4x4 m2)
-{
-	Matrix4x4 result = { 0 };
+Matrix4x4 multiply_m2(Matrix4x4 m1, Matrix4x4 m2);
 
-	// column 1
-	result.e[0] = (m1.e[0] * m2.e[0]) + (m1.e[4] * m2.e[1]) + (m1.e[8] * m2.e[2]) + (m1.e[12] * m2.e[3]);
-	result.e[1] = (m1.e[1] * m2.e[0]) + (m1.e[5] * m2.e[1]) + (m1.e[9] * m2.e[2]) + (m1.e[13] * m2.e[3]);
-	result.e[2] = (m1.e[2] * m2.e[0]) + (m1.e[6] * m2.e[1]) + (m1.e[10] * m2.e[2]) + (m1.e[14] * m2.e[3]);
-	result.e[3] = (m1.e[3] * m2.e[0]) + (m1.e[7] * m2.e[1]) + (m1.e[11] * m2.e[2]) + (m1.e[15] * m2.e[3]);
+Matrix4x4 multiply_m3(Matrix4x4 m1, Matrix4x4 m2, Matrix4x4 m3);
 
-	// column 2
-	result.e[4] = (m1.e[0] * m2.e[4]) + (m1.e[4] * m2.e[5]) + (m1.e[8] * m2.e[6]) + (m1.e[12] * m2.e[7]);
-	result.e[5] = (m1.e[1] * m2.e[4]) + (m1.e[5] * m2.e[5]) + (m1.e[9] * m2.e[6]) + (m1.e[13] * m2.e[7]);
-	result.e[6] = (m1.e[2] * m2.e[4]) + (m1.e[6] * m2.e[5]) + (m1.e[10] * m2.e[6]) + (m1.e[14] * m2.e[7]);
-	result.e[7] = (m1.e[3] * m2.e[4]) + (m1.e[7] * m2.e[5]) + (m1.e[11] * m2.e[6]) + (m1.e[15] * m2.e[7]);
-
-	// column 3
-	result.e[8] = (m1.e[0] * m2.e[8]) + (m1.e[4] * m2.e[9]) + (m1.e[8] * m2.e[10]) + (m1.e[12] * m2.e[11]);
-	result.e[9] = (m1.e[1] * m2.e[8]) + (m1.e[5] * m2.e[9]) + (m1.e[9] * m2.e[10]) + (m1.e[13] * m2.e[11]);
-	result.e[10] = (m1.e[2] * m2.e[8]) + (m1.e[6] * m2.e[9]) + (m1.e[10] * m2.e[10]) + (m1.e[14] * m2.e[11]);
-	result.e[11] = (m1.e[3] * m2.e[8]) + (m1.e[7] * m2.e[5]) + (m1.e[11] * m2.e[10]) + (m1.e[15] * m2.e[11]);
-
-	// column 4
-	result.e[12] = (m1.e[0] * m2.e[12]) + (m1.e[4] * m2.e[13]) + (m1.e[8] * m2.e[14]) + (m1.e[12] * m2.e[15]);
-	result.e[13] = (m1.e[1] * m2.e[12]) + (m1.e[5] * m2.e[13]) + (m1.e[9] * m2.e[14]) + (m1.e[13] * m2.e[15]);
-	result.e[14] = (m1.e[2] * m2.e[12]) + (m1.e[6] * m2.e[13]) + (m1.e[10] * m2.e[14]) + (m1.e[14] * m2.e[15]);
-	result.e[15] = (m1.e[3] * m2.e[12]) + (m1.e[7] * m2.e[13]) + (m1.e[11] * m2.e[14]) + (m1.e[15] * m2.e[15]);
-
-	return result;
-}
-
-Matrix4x4 multiply_m3(Matrix4x4 m1, Matrix4x4 m2, Matrix4x4 m3)
-{
-	return multiply_m2(multiply_m2(m1, m2), m3);
-}
-
-Matrix4x4 createMatrixSetDiagonals(float x, float y, float z, float h)
-{
-	Matrix4x4 matrix = { 0 };
-
-	matrix.e[0] = x;
-	matrix.e[1] = 0.0f;
-	matrix.e[2] = 0.0f;
-	matrix.e[3] = 0.0f;
-
-	matrix.e[4] = 0.0f;
-	matrix.e[5] = y;
-	matrix.e[6] = 0.0f;
-	matrix.e[7] = 0.0f;
-
-	matrix.e[8] = 0.0f;
-	matrix.e[9] = 0.0f;
-	matrix.e[10] = z;
-	matrix.e[11] = 0.0f;
-
-	matrix.e[12] = 0.0f;
-	matrix.e[13] = 0.0f;
-	matrix.e[14] = 0.0f;
-	matrix.e[15] = h;
-
-	return matrix;
-}
-
-inline float degreesToRadians(float degrees)
-{
-	return degrees * ((float)M_PI / 180.0f);
-}
+Matrix4x4 createMatrixSetDiagonals(float x, float y, float z, float h);
+Matrix4x4 lookAt(Vector4 e, Vector4 g, Vector4 t);
+Vector4 createVector4(float x, float y, float z, float h);
+Vector4 crossProduct(Vector4 a, Vector4 b);
+float magnitude(Vector4 v);
+void clamp(float min, float max, float *value);
+float degreesToRadians(float degrees);

@@ -27,6 +27,12 @@
     <ClCompile Include="vkrenderer.c">
       <Filter>Renderer</Filter>
     </ClCompile>
+    <ClCompile Include="simd_math.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="collision_detection.c">
+      <Filter>Header Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="datatest.h">
@@ -43,6 +49,18 @@
     </ClInclude>
     <ClInclude Include="vkrenderer.h">
       <Filter>Renderer</Filter>
+    </ClInclude>
+    <ClInclude Include="camera.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="keyboard_input.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="collision_detection.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Entities.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

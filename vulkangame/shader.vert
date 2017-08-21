@@ -5,6 +5,10 @@ layout(binding = 0) uniform uni {
 	mat4 mvp;
 } unis;
 
+layout(binding = 2) uniform texas {
+	vec4 textrans;
+} tex;
+
 layout(location = 0) in vec2 inPosition;
 layout(location = 1) in vec3 inColor;
 layout(location = 2) in vec2 inTexCoord;
@@ -17,7 +21,12 @@ out gl_PerVertex {
 };
 
 void main() {
+	vec2 nej;
+	nej.x = (inTexCoord.x * tex.textrans.x) + (tex.textrans.z * tex.textrans.x);
+	nej.y = (inTexCoord.y * tex.textrans.y) + (tex.textrans.w * tex.textrans.y);
+
+
 	gl_Position = unis.mvp * vec4(inPosition, 1.0, 1.0);
 	fragColor = inColor;
-	fragTexCoord = inTexCoord;
+	fragTexCoord = nej;
 }

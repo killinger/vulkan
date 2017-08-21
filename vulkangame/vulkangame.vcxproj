@@ -152,11 +152,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="collision_detection.c" />
     <ClCompile Include="main.c" />
+    <ClCompile Include="simd_math.c" />
     <ClCompile Include="vkrenderer.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="camera.h" />
+    <ClInclude Include="collision_detection.h" />
     <ClInclude Include="datatest.h" />
+    <ClInclude Include="Entities.h" />
+    <ClInclude Include="keyboard_input.h" />
     <ClInclude Include="simd_math.h" />
     <ClInclude Include="stb_image.h" />
     <ClInclude Include="vkrenderer.h" />
